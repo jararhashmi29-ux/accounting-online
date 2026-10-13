@@ -31,6 +31,39 @@ table{width:100%;border-collapse:collapse;min-width:700px}th,td{padding:9px 10px
 footer{padding:20px;color:var(--muted);text-align:center;font-size:12px}
 @media(max-width:600px){main{padding:10px}header{padding:15px}nav{position:static;padding:8px}nav button{flex:1}.card .num{font-size:20px}}
 @media print{nav,button,.actions,form,.no-print,header p{display:none!important}body{background:white}main{max-width:none;padding:0}.tab{display:none!important}.tab.active{display:block!important}.panel,.card{box-shadow:none}}
+/* Finance Pro: Odoo-inspired workspace layout */
+:root{--bg:#f4f6f9;--card:#ffffff;--ink:#202a36;--muted:#697586;--line:#e1e6ed;--accent:#714b67;--bad:#b42318;--good:#087443}
+body{background:#f4f6f9;color:#202a36;font-family:Inter,"Segoe UI",Arial,sans-serif}
+#cloudBar{position:sticky;top:0;height:42px;padding:7px 18px;background:#262a33;box-shadow:0 1px 3px #0002}
+header{margin-left:236px;background:#fff;color:#202a36;border-bottom:1px solid #e1e6ed;padding:17px 26px;min-height:82px}
+header h1{font-size:23px;font-weight:700;letter-spacing:-.4px;color:#714b67}
+header p{color:#697586;font-size:13px}
+header .pill{background:#f2eaf0;color:#714b67;padding:7px 10px}
+nav{position:fixed;z-index:20;left:0;top:42px;bottom:0;width:220px;overflow-y:auto;display:flex;flex-direction:column;align-items:stretch;gap:3px;padding:18px 12px;background:#262a33;border:0;border-right:1px solid #3b404a}
+nav:before{content:"FINANCE PRO";color:#c5a6bc;font-size:11px;font-weight:800;letter-spacing:1.5px;padding:4px 12px 13px}
+nav button{width:100%;text-align:left;border-radius:6px;background:transparent;color:#d5d8de;padding:10px 12px;font-weight:500;font-size:13px;display:flex;align-items:center;gap:8px}
+nav button:hover{background:#3a3f49;color:#fff}
+nav button.active{background:#714b67;color:#fff;box-shadow:inset 3px 0 #d9b8d0}
+main{margin-left:236px;padding:24px 26px;max-width:none;width:auto}
+.tab{animation:fadein .12s ease-out}
+@keyframes fadein{from{opacity:.65;transform:translateY(2px)}to{opacity:1;transform:none}}
+.card,.panel{border:1px solid #e2e6ec;border-radius:8px;box-shadow:0 1px 2px #202a3608;padding:18px}
+.card .label{font-size:12px;text-transform:uppercase;letter-spacing:.35px;color:#697586}
+.card .num{font-size:25px;color:#252b35}
+h2{font-size:18px;font-weight:650;letter-spacing:-.2px}h3{font-size:14px;font-weight:700}
+button,.btn{background:#714b67;border-radius:6px;padding:9px 13px;transition:background .12s}
+button:hover,.btn:hover{background:#5d3d55}
+button.secondary{background:#edf0f4;color:#344054}button.secondary:hover{background:#e0e5eb}
+button.danger{background:#b42318}
+input,select,textarea{border-radius:6px;border-color:#cfd6df;padding:10px}
+input:focus,select:focus,textarea:focus{outline:2px solid #eadde7;border-color:#9b7890}
+.tablewrap{border-radius:7px;border-color:#e1e6ed}
+th{background:#f5f6f8;color:#4b5563;font-weight:650}
+th,td{padding:10px 12px}
+.status{border-radius:6px}
+@media(max-width:760px){header{margin-left:0;padding:14px 16px}nav{position:sticky;top:42px;bottom:auto;width:100%;height:auto;flex-direction:row;overflow-x:auto;padding:8px;background:#262a33;gap:5px}nav:before{display:none}nav button{width:auto;min-width:max-content;text-align:center;padding:9px 11px}main{margin-left:0;padding:14px}.cards{grid-template-columns:repeat(2,minmax(0,1fr))}header h1{font-size:20px}}
+@media(max-width:420px){.cards{grid-template-columns:1fr}.grid2{grid-template-columns:1fr}}
+
 </style>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="config.js"></script>
@@ -119,6 +152,7 @@ footer{padding:20px;color:var(--muted);text-align:center;font-size:12px}
 <div class="panel"><h2>Business Voucher Entry</h2>
 <p class="note">Record purchases, sales, vendor payments, customer receipts and stock adjustments. Changes sync to the shared company account when cloud status shows synced.</p>
 <div class="field"><label>Voucher Type</label><select id="voucherType"><option value="purchase">Purchase from Vendor</option><option value="sale">Sale to Customer</option><option value="vendorpay">Vendor Payment</option><option value="customerreceipt">Customer Receipt</option><option value="stockadjust">Stock Adjustment</option></select></div>
+<div class="note" id="postingHint" style="background:#f5f0f4;border-left:4px solid #714b67;padding:10px 12px;border-radius:6px;margin:10px 0">Odoo-style posting: choose a voucher type to preview its automatic Debit/Credit entry.</div>
 <form id="voucherForm">
 <div class="fields">
 <div class="field"><label>Date</label><input type="date" id="vDate" required></div>
@@ -291,7 +325,21 @@ function createVoucherEntry(date,ref,desc,party,lines){
  if(Math.abs(d-c)>.009)throw new Error('Voucher totals are not balanced.');
  data.entries.push({id:data.nextId++,date,ref,desc,party:party||'',lines});
 }
-document.getElementById('voucherForm').addEventListener('submit',e=>{
+function updatePostingHint(){
+ const t=val('voucherType'),cash=val('vCashBank'),cashName=cash==='1000'?'Cash':'Bank Account';
+ const hints={
+ purchase:'Purchase from Vendor: Inventory / Purchase Dr; Vendor (Accounts Payable) Cr.',
+ sale:'Sale to Customer: Customer (Accounts Receivable) Dr; Sales Cr. (Inventory cost is also posted when applicable).',
+ vendorpay:'Vendor Payment: Vendor (Accounts Payable) Dr; '+cashName+' Cr.',
+ customerreceipt:'Customer Receipt: '+cashName+' Dr; Customer (Accounts Receivable) Cr.',
+ stockadjust:'Stock Adjustment: inventory adjustment is posted according to the selected item and description.'
+ };
+ const el=document.getElementById('postingHint');if(el)el.textContent='Odoo-style automatic entry: '+(hints[t]||'Select a voucher type.');
+ }
+ document.getElementById('voucherType').addEventListener('change',updatePostingHint);
+ document.getElementById('vCashBank').addEventListener('change',updatePostingHint);
+ updatePostingHint();
+ document.getElementById('voucherForm').addEventListener('submit',e=>{
  e.preventDefault();const type=val('voucherType'),date=val('vDate'),ref=val('vRef').trim(),party=val('vParty').trim(),desc=val('vDesc').trim(),cash=val('vCashBank'),itemName=val('vItem').trim(),qty=Number(val('vQty'))||0,rate=Number(val('vRate'))||0;
  if(rate<=0)return alert('Enter a rate or amount greater than zero.');
  if((type==='purchase'||type==='sale'||type==='vendorpay'||type==='customerreceipt')&&!party)return alert('Enter the customer/vendor name.');
