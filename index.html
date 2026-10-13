@@ -1,0 +1,343 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Basic Offline Accounting</title>
+<style>
+:root{--bg:#f3f5f8;--card:#fff;--ink:#182230;--muted:#657184;--line:#dfe5ec;--accent:#1f5eff;--bad:#b42318;--good:#087443}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font:14px/1.45 Arial,sans-serif}
+header{background:#172b4d;color:white;padding:18px 22px;display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap}
+header h1{font-size:21px;margin:0}header p{margin:4px 0 0;color:#d8e2f0}
+nav{display:flex;gap:8px;padding:12px 18px;background:#fff;border-bottom:1px solid var(--line);flex-wrap:wrap;position:sticky;top:0;z-index:5}
+button,.btn{border:0;border-radius:8px;padding:9px 12px;background:var(--accent);color:white;cursor:pointer;font-weight:600}
+button.secondary{background:#e9eef6;color:#26364d}button.danger{background:#b42318}button:disabled{opacity:.45;cursor:not-allowed}
+nav button{background:#edf1f7;color:#27364a}nav button.active{background:#1f5eff;color:#fff}
+main{padding:18px;max-width:1400px;margin:auto}.tab{display:none}.tab.active{display:block}
+.cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;margin-bottom:18px}
+.card,.panel{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:16px;box-shadow:0 2px 6px #172b4d08}
+.card .label{color:var(--muted);font-size:12px}.card .num{font-size:24px;font-weight:700;margin-top:6px;overflow-wrap:anywhere}
+h2{font-size:19px;margin:0 0 12px}h3{font-size:15px;margin:0 0 10px}
+.grid2{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:14px}
+form .fields{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:10px}
+label{display:block;font-weight:600;font-size:12px;color:#475467;margin-bottom:5px}
+input,select,textarea{width:100%;padding:10px;border:1px solid #cbd5e1;border-radius:7px;background:white;color:var(--ink);font:inherit}
+input:focus,select:focus,textarea:focus{outline:2px solid #c7d7ff;border-color:var(--accent)}
+.field{margin-bottom:10px}.actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
+.tablewrap{overflow:auto;border:1px solid var(--line);border-radius:9px;margin-top:12px;background:#fff}
+table{width:100%;border-collapse:collapse;min-width:700px}th,td{padding:9px 10px;border-bottom:1px solid var(--line);text-align:left;white-space:nowrap}th{background:#f6f8fb;font-size:12px;color:#475467;position:sticky;top:0}td.num,th.num{text-align:right;font-variant-numeric:tabular-nums}.empty{text-align:center;color:var(--muted);padding:25px}
+.note{color:var(--muted);font-size:12px;margin:8px 0}.status{padding:10px 12px;border-radius:8px;background:#ecfdf3;color:#05603a;margin:10px 0;display:none}.warn{background:#fff7ed;color:#9a3412;padding:10px;border-radius:8px;margin:10px 0}
+.bad{color:var(--bad)}.good{color:var(--good)}.pill{padding:3px 7px;border-radius:20px;background:#edf1f7;font-size:11px}
+footer{padding:20px;color:var(--muted);text-align:center;font-size:12px}
+@media(max-width:600px){main{padding:10px}header{padding:15px}nav{position:static;padding:8px}nav button{flex:1}.card .num{font-size:20px}}
+@media print{nav,button,.actions,form,.no-print,header p{display:none!important}body{background:white}main{max-width:none;padding:0}.tab{display:none!important}.tab.active{display:block!important}.panel,.card{box-shadow:none}}
+</style>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="config.js"></script>
+<style>
+#cloudBar{position:sticky;top:0;z-index:999;background:#102a43;color:#fff;padding:9px 16px;display:flex;justify-content:space-between;align-items:center;gap:10px;font-size:13px}
+#cloudBar button{background:#fff;color:#102a43;padding:6px 10px}
+#loginGate{position:fixed;inset:0;background:#f3f6fa;z-index:2000;display:flex;align-items:center;justify-content:center;padding:20px}
+#loginCard{background:white;border:1px solid #d8e0ea;border-radius:14px;padding:26px;max-width:430px;width:100%;box-shadow:0 12px 40px #102a4318}
+#loginCard input{width:100%;padding:11px;margin:7px 0 13px;box-sizing:border-box}
+#loginCard button{width:100%;padding:11px}
+#loginMsg{color:#b42318;font-size:13px;white-space:pre-wrap}
+</style>
+</head>
+<body>
+<div id="cloudBar"><span id="cloudStatus">Online accounting · Connecting…</span><span><span id="cloudUser"></span> <button onclick="cloudSignOut()">Sign out</button></span></div>
+<div id="loginGate"><div id="loginCard"><h2>Online Accounting Login</h2><p>Sign in with the account created by your administrator.</p>
+<form id="loginForm"><label>Email</label><input id="loginEmail" type="email" required autocomplete="username" placeholder="you@company.com"><label>Password</label><input id="loginPassword" type="password" required autocomplete="current-password" placeholder="Password"><button type="submit">Sign in</button></form>
+<p id="loginMsg"></p><p style="font-size:12px;color:#667085">Accounts are invitation-only. Contact your administrator if you need access.</p></div></div>
+<header><div><h1>Basic Offline Accounting</h1><p>Bookkeeping · Chart of Accounts · Cash & Bank · Ledger Reports</p></div><div><span class="pill">OFFLINE / LOCAL</span></div></header>
+<nav>
+<button class="active" data-tab="dashboard">Dashboard</button>
+<button data-tab="accounts">Chart of Accounts</button>
+<button data-tab="entries">Journal Entries</button>
+<button data-tab="vouchers">Business Vouchers</button>
+<button data-tab="ledger">Ledger</button>
+<button data-tab="reports">Reports</button>
+<button data-tab="backup">Backup & Settings</button>
+</nav>
+<main>
+<section id="dashboard" class="tab active">
+<div class="cards">
+<div class="card"><div class="label">Cash Balance</div><div class="num" id="dashCash">PKR 0.00</div></div>
+<div class="card"><div class="label">Bank Balance</div><div class="num" id="dashBank">PKR 0.00</div></div>
+<div class="card"><div class="label">Total Income</div><div class="num" id="dashIncome">PKR 0.00</div></div>
+<div class="card"><div class="label">Total Expenses</div><div class="num" id="dashExpense">PKR 0.00</div></div>
+<div class="card"><div class="label">Assets</div><div class="num" id="dashAssets">PKR 0.00</div></div>
+<div class="card"><div class="label">Liabilities</div><div class="num" id="dashLiabilities">PKR 0.00</div></div>
+</div>
+<div class="grid2">
+<div class="panel"><h2>Quick Entry</h2><p class="note">Examples: record an expense, income, cash deposited into bank, or money received from a customer.</p>
+<div class="actions"><button onclick="quickEntry('expense')">Add Expense</button><button onclick="quickEntry('income')">Add Income</button><button class="secondary" onclick="quickEntry('transfer')">Cash ↔ Bank Transfer</button></div></div>
+<div class="panel"><h2>How double-entry works</h2><p>Every journal entry must have equal total Debit and Credit. The software checks this before saving.</p><p class="note">Opening balances are entered as a balanced journal entry, usually against “Opening Balance Equity”. Keep a backup copy regularly.</p></div>
+</div>
+<div class="panel" style="margin-top:14px"><h2>Recent Entries</h2><div id="recentEntries"></div></div>
+</section>
+
+<section id="accounts" class="tab">
+<div class="grid2">
+<div class="panel"><h2>Add Account</h2>
+<form id="accountForm"><div class="fields">
+<div class="field"><label>Account Code</label><input id="accCode" placeholder="e.g. 1010" required></div>
+<div class="field"><label>Account Name</label><input id="accName" placeholder="e.g. Petty Cash" required></div>
+<div class="field"><label>Account Type</label><select id="accType" required><option>Asset</option><option>Liability</option><option>Equity</option><option>Income</option><option>Expense</option></select></div>
+<div class="field"><label>Normal Balance</label><select id="accNormal"><option value="Debit">Debit (Assets/Expenses)</option><option value="Credit">Credit (Liabilities/Equity/Income)</option></select></div>
+</div><div class="actions"><button type="submit">Save Account</button><button type="reset" class="secondary">Clear</button></div></form>
+<p class="note">Built-in accounts cannot be deleted. Add your own expense or income heads here whenever needed.</p></div>
+<div class="panel"><h2>Chart of Accounts</h2><div class="field"><label>Filter by type</label><select id="accountFilter"><option value="">All types</option><option>Asset</option><option>Liability</option><option>Equity</option><option>Income</option><option>Expense</option></select></div><div id="accountsTable"></div></div>
+</div></section>
+
+<section id="entries" class="tab">
+<div class="panel"><h2>New Journal Entry</h2><p class="note">Enter a date, reference and description, then add at least two lines. Total Debit must equal Total Credit.</p>
+<form id="entryForm">
+<div class="fields">
+<div class="field"><label>Date</label><input type="date" id="entryDate" required></div>
+<div class="field"><label>Reference / Voucher No.</label><input id="entryRef" placeholder="e.g. JV-001"></div>
+<div class="field"><label>Description</label><input id="entryDesc" placeholder="e.g. Office rent paid" required></div>
+</div>
+<div class="tablewrap"><table><thead><tr><th style="min-width:240px">Account</th><th>Description (optional)</th><th class="num">Debit (PKR)</th><th class="num">Credit (PKR)</th><th></th></tr></thead><tbody id="entryLines"></tbody></table></div>
+<div class="actions"><button type="button" class="secondary" onclick="addLine()">+ Add Line</button><button type="button" class="secondary" onclick="fillExpenseExample()">Expense Example</button></div>
+<div class="cards" style="margin-top:14px;margin-bottom:0"><div class="card"><div class="label">Total Debit</div><div class="num" id="totalDebit">0.00</div></div><div class="card"><div class="label">Total Credit</div><div class="num" id="totalCredit">0.00</div></div><div class="card"><div class="label">Difference (must be 0)</div><div class="num" id="difference">0.00</div></div></div>
+<div class="actions"><button type="submit">Save Journal Entry</button><button type="button" class="secondary" onclick="clearEntry()">Clear Form</button></div><div class="status" id="entryStatus"></div>
+</form></div>
+<div class="panel" style="margin-top:14px"><h2>All Journal Entries</h2><div class="fields no-print"><div class="field"><label>From</label><input type="date" id="entryFrom"></div><div class="field"><label>To</label><input type="date" id="entryTo"></div><div class="field"><label>Search description / reference</label><input id="entrySearch" placeholder="Search..."></div></div><div id="entriesTable"></div></div>
+</section>
+
+
+<section id="vouchers" class="tab">
+<div class="grid2">
+<div class="panel"><h2>Business Voucher Entry</h2>
+<p class="note">These forms create balanced accounting entries automatically. Customer/vendor names are saved locally.</p>
+<div class="field"><label>Voucher Type</label><select id="voucherType"><option value="purchase">Purchase from Vendor</option><option value="sale">Sale to Customer</option><option value="vendorpay">Vendor Payment</option><option value="customerreceipt">Customer Receipt</option><option value="stockadjust">Stock Adjustment</option></select></div>
+<form id="voucherForm">
+<div class="fields">
+<div class="field"><label>Date</label><input type="date" id="vDate" required></div>
+<div class="field"><label>Voucher / Invoice No.</label><input id="vRef" placeholder="e.g. PUR-001"></div>
+<div class="field"><label>Party Name</label><input id="vParty" list="partyList" placeholder="Enter vendor/customer name"><datalist id="partyList"></datalist></div>
+<div class="field"><label>Payment / Receipt Account</label><select id="vCashBank"><option value="1000">Cash</option><option value="1010">Bank Account</option></select></div>
+<div class="field"><label>Item (for purchase/sale/stock)</label><input id="vItem" list="itemList" placeholder="Item name"><datalist id="itemList"></datalist></div>
+<div class="field"><label>Quantity</label><input id="vQty" type="number" min="0" step="0.001" value="1"></div>
+<div class="field"><label>Unit Rate for Purchase / Total Amount for Others (PKR)</label><input id="vRate" type="number" min="0" step="0.01" required placeholder="0.00"></div>
+</div>
+<div class="field"><label>Description</label><input id="vDesc" required placeholder="Brief description"></div>
+<div class="actions"><button type="submit">Save Voucher</button><button type="button" class="secondary" onclick="clearVoucher()">Clear</button></div>
+<div class="status" id="voucherStatus"></div>
+</form>
+</div>
+<div class="panel"><h2>Party & Stock Setup</h2>
+<form id="partyForm"><h3>Add Customer / Vendor</h3><div class="fields">
+<div class="field"><label>Party Name</label><input id="partyName" required placeholder="Name"></div>
+<div class="field"><label>Party Type</label><select id="partyType"><option>Vendor</option><option>Customer</option><option>Both</option></select></div>
+</div><div class="actions"><button type="submit">Save Party</button></div></form>
+<hr style="border:0;border-top:1px solid var(--line);margin:18px 0">
+<form id="itemForm"><h3>Add Stock Item</h3><div class="fields">
+<div class="field"><label>Item Name</label><input id="itemName" required placeholder="e.g. Product A"></div>
+<div class="field"><label>Opening Quantity</label><input id="itemOpeningQty" type="number" min="0" step="0.001" value="0"></div>
+<div class="field"><label>Opening Unit Cost (PKR)</label><input id="itemOpeningCost" type="number" min="0" step="0.01" value="0"></div>
+</div><div class="actions"><button type="submit">Save Item</button></div></form>
+<p class="note">Stock quantities are tracked by item. Purchase and sale vouchers update stock. For inventory valuation, purchase rates update average cost; sales reduce stock using average cost.</p>
+</div>
+</div>
+<div class="grid2" style="margin-top:14px">
+<div class="panel"><h2>Customers & Vendors</h2><div id="partiesTable"></div></div>
+<div class="panel"><h2>Stock Inventory</h2><div id="itemsTable"></div></div>
+</div>
+<div class="panel" style="margin-top:14px"><h2>Bank Reconciliation</h2>
+<p class="note">Mark bank-account journal entries as cleared to compare the book balance with your bank statement. Only entries posted to the Bank Account are shown.</p>
+<div class="fields"><div class="field"><label>Statement Closing Balance (PKR)</label><input id="bankStatementBalance" type="number" step="0.01" placeholder="Enter bank statement balance"></div></div>
+<div class="actions"><button onclick="renderBankReconciliation()">Refresh Reconciliation</button><button class="secondary" onclick="exportClearedBankCSV()">Export Bank Entries CSV</button></div>
+<div id="bankReconSummary"></div><div id="bankReconTable"></div>
+</div>
+</section>
+
+<section id="ledger" class="tab">
+<div class="panel"><h2>Account Ledger</h2><div class="fields">
+<div class="field"><label>Select Account</label><select id="ledgerAccount"></select></div><div class="field"><label>From Date</label><input id="ledgerFrom" type="date"></div><div class="field"><label>To Date</label><input id="ledgerTo" type="date"></div>
+</div><div class="actions"><button onclick="renderLedger()">Show Ledger</button><button class="secondary" onclick="print()">Print</button></div><div id="ledgerTable"></div></div>
+</section>
+
+<section id="reports" class="tab">
+<div class="panel"><h2>Financial Reports</h2><div class="fields">
+<div class="field"><label>From Date</label><input id="reportFrom" type="date"></div><div class="field"><label>To Date</label><input id="reportTo" type="date"></div></div><div class="actions"><button onclick="renderReports()">Generate Reports</button><button class="secondary" onclick="print()">Print Current Report</button></div></div>
+<div class="panel" style="margin-top:14px"><h2>Trial Balance</h2><div id="trialBalance"></div></div>
+<div class="grid2" style="margin-top:14px"><div class="panel"><h2>Income & Expense Summary</h2><div id="profitLoss"></div></div><div class="panel"><h2>Balance Sheet Summary</h2><div id="balanceSheet"></div></div></div>
+</section>
+
+<section id="backup" class="tab">
+<div class="grid2">
+<div class="panel"><h2>Backup / Restore</h2><p>All entries are stored in this browser on this computer. Export a backup file regularly so you can restore data if browser data is cleared or the computer changes.</p>
+<div class="actions"><button onclick="exportBackup()">Download Backup</button><label class="btn" for="restoreFile" style="cursor:pointer">Restore Backup</label><input id="restoreFile" type="file" accept=".json,application/json" style="display:none"></div>
+<div class="warn">Important: this is a basic local tool, not encrypted accounting software. Anyone using this Windows/browser profile may be able to access the data. Keep backup files secure.</div></div>
+<div class="panel"><h2>Business Settings</h2><form id="settingsForm"><div class="field"><label>Business Name</label><input id="businessName" placeholder="Your business name"></div><div class="field"><label>Currency</label><select id="currency"><option value="PKR">PKR — Pakistani Rupee</option></select></div><button type="submit">Save Settings</button></form>
+<hr style="border:0;border-top:1px solid var(--line);margin:18px 0"><h3>Reset all data</h3><p class="note">This permanently clears accounts and journal entries from this browser. Export a backup first.</p><button class="danger" onclick="resetAll()">Reset All Data</button></div>
+</div></section>
+</main><footer>Basic Online Accounting · Supabase cloud database · PKR</footer>
+<script>
+const STORE='basicOfflineAccounting_v1';
+const defaults=[
+['1000','Cash','Asset','Debit'],['1010','Bank Account','Asset','Debit'],['1100','Accounts Receivable','Asset','Debit'],['1200','Inventory','Asset','Debit'],['1500','Equipment','Asset','Debit'],
+['2000','Accounts Payable','Liability','Credit'],['2100','Loan Payable','Liability','Credit'],['3000','Owner Capital','Equity','Credit'],['3100','Opening Balance Equity','Equity','Credit'],['3200','Owner Drawings','Equity','Debit'],
+['4000','Sales / Service Income','Income','Credit'],['4100','Other Income','Income','Credit'],
+['5000','Purchases / Cost of Goods','Expense','Debit'],['5100','Rent Expense','Expense','Debit'],['5200','Salaries Expense','Expense','Debit'],['5300','Utilities Expense','Expense','Debit'],['5400','Transport Expense','Expense','Debit'],['5500','Office Expense','Expense','Debit'],['5600','Repairs & Maintenance','Expense','Debit'],['5900','Miscellaneous Expense','Expense','Debit']
+].map(([code,name,type,normal])=>({code,name,type,normal,builtin:true}));
+let data={accounts:[],entries:[],settings:{businessName:'',currency:'PKR'},parties:[],items:[],nextId:1};
+let cloudClient=null, cloudUser=null, cloudReady=false, cloudSaveTimer=null, cloudSaveChain=Promise.resolve(), cloudVersion=null;
+const COMPANY_ROW_ID='00000000-0000-4000-8000-000000000001';
+function setCloudStatus(message,isError=false){const el=document.getElementById('cloudStatus');if(el){el.textContent=message;el.style.color=isError?'#ffd6d6':'#ffffff';}}
+function normalizeData(d){if(!d||typeof d!=='object')d={};if(!Array.isArray(d.accounts))d.accounts=[];if(!Array.isArray(d.entries))d.entries=[];if(!d.settings)d.settings={businessName:'',currency:'PKR'};d.settings.currency='PKR';if(!Array.isArray(d.parties))d.parties=[];if(!Array.isArray(d.items))d.items=[];if(!d.nextId)d.nextId=1;const have=new Set(d.accounts.map(a=>a.code));defaults.forEach(a=>{if(!have.has(a.code))d.accounts.push({...a})});return d;}
+async function load(){setCloudStatus('Loading shared company data…');const {data:row,error}=await cloudClient.from('company_data').select('payload,version').eq('id',COMPANY_ROW_ID).maybeSingle();if(error)throw error;if(row&&row.payload){cloudVersion=row.version;data=normalizeData(row.payload);setCloudStatus('Cloud synced · changes shared with all users');}else{const local=localStorage.getItem(STORE);data=normalizeData(local?JSON.parse(local):{accounts:defaults.map(a=>({...a})),entries:[],settings:{businessName:'',currency:'PKR'},parties:[],items:[],nextId:1});const {data:created,error:createError}=await cloudClient.from('company_data').insert({id:COMPANY_ROW_ID,payload:data,version:1,updated_by:cloudUser.id}).select('version').single();if(createError)throw createError;cloudVersion=created.version;setCloudStatus('Cloud initialized · shared company data is ready');}try{localStorage.setItem(STORE,JSON.stringify(data));}catch(e){}}
+function save(show=true){try{localStorage.setItem(STORE,JSON.stringify(data));}catch(e){}if(!cloudReady)return;setCloudStatus('Saving to cloud…');clearTimeout(cloudSaveTimer);cloudSaveTimer=setTimeout(()=>{cloudSaveChain=cloudSaveChain.then(pushCloudNow).catch(e=>{setCloudStatus('Cloud save failed: '+(e.message||'check connection'),true);console.error(e);});},500);}
+async function pushCloudNow(){if(!cloudClient||!cloudUser)return;const snapshot=JSON.parse(JSON.stringify(data));if(cloudVersion===null)throw new Error('Cloud version missing. Reload the page.');const next=cloudVersion+1;const {data:rows,error}=await cloudClient.from('company_data').update({payload:snapshot,version:next,updated_by:cloudUser.id,updated_at:new Date().toISOString()}).eq('id',COMPANY_ROW_ID).eq('version',cloudVersion).select('version');if(error)throw error;if(!rows||rows.length!==1){cloudReady=false;throw new Error('Another user saved changes at the same time. Your unsynced change was NOT uploaded. Copy/export your work if needed, then reload to get the latest shared data.');}cloudVersion=next;setCloudStatus('Cloud synced · '+new Date().toLocaleTimeString());}
+async function cloudSignOut(){cloudReady=false;await cloudClient.auth.signOut();location.reload();}
+function money(n){return (data.settings.currency||'PKR')+' '+Number(n||0).toLocaleString('en-PK',{minimumFractionDigits:2,maximumFractionDigits:2})}
+function esc(s){return String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
+function acct(id){return data.accounts.find(a=>a.code===id)}
+function accountOptions(selected=''){return data.accounts.slice().sort((a,b)=>a.code.localeCompare(b.code,undefined,{numeric:true})).map(a=>`<option value="${esc(a.code)}" ${a.code===selected?'selected':''}>${esc(a.code)} — ${esc(a.name)} (${esc(a.type)})</option>`).join('')}
+function balance(code,upto=null){let v=0;data.entries.filter(e=>!upto||e.date<=upto).forEach(e=>e.lines.forEach(l=>{if(l.account===code){const a=acct(code);v+=a?.normal==='Credit'?(l.credit-l.debit):(l.debit-l.credit)}}));return v}
+function totalsByType(type,from=null,to=null){let v=0;data.accounts.filter(a=>a.type===type).forEach(a=>{data.entries.filter(e=>(!from||e.date>=from)&&(!to||e.date<=to)).forEach(e=>e.lines.forEach(l=>{if(l.account===a.code){v+=a.normal==='Credit'?(l.credit-l.debit):(l.debit-l.credit)}}))});return v}
+function accountNet(a,from=null,to=null){let v=0;data.entries.filter(e=>(!from||e.date>=from)&&(!to||e.date<=to)).forEach(e=>e.lines.forEach(l=>{if(l.account===a.code)v+=a.normal==='Credit'?(l.credit-l.debit):(l.debit-l.credit)}));return v}
+document.querySelectorAll('nav button').forEach(b=>b.addEventListener('click',()=>{document.querySelectorAll('nav button').forEach(x=>x.classList.toggle('active',x===b));document.querySelectorAll('.tab').forEach(x=>x.classList.toggle('active',x.id===b.dataset.tab));refresh()}));
+document.getElementById('accountForm').addEventListener('submit',e=>{e.preventDefault();const code=val('accCode').trim(),name=val('accName').trim();if(data.accounts.some(a=>a.code.toLowerCase()===code.toLowerCase()))return alert('Account code already exists. Use a unique code.');data.accounts.push({code,name,type:val('accType'),normal:val('accNormal'),builtin:false});save();e.target.reset();refresh();alert('Account added.')});
+document.getElementById('accountFilter').addEventListener('change',renderAccounts);
+function renderAccounts(){const f=val('accountFilter');let arr=data.accounts.filter(a=>!f||a.type===f).slice().sort((a,b)=>a.code.localeCompare(b.code,undefined,{numeric:true}));document.getElementById('accountsTable').innerHTML=arr.length?`<div class="tablewrap"><table><thead><tr><th>Code</th><th>Account Name</th><th>Type</th><th>Normal</th><th class="num">Balance</th><th></th></tr></thead><tbody>${arr.map(a=>`<tr><td>${esc(a.code)}</td><td>${esc(a.name)}</td><td>${esc(a.type)}</td><td>${esc(a.normal)}</td><td class="num">${money(balance(a.code))}</td><td>${a.builtin?'<span class="pill">Built-in</span>':`<button class="danger" onclick="deleteAccount('${esc(a.code)}')">Delete</button>`}</td></tr>`).join('')}</tbody></table></div>`:'<div class="empty">No accounts.</div>';document.getElementById('ledgerAccount').innerHTML=accountOptions(val('ledgerAccount'))}
+function deleteAccount(code){if(data.entries.some(e=>e.lines.some(l=>l.account===code)))return alert('This account has entries and cannot be deleted.');if(!confirm('Delete this account?'))return;data.accounts=data.accounts.filter(a=>a.code!==code);save();refresh()}
+function addLine(account='',desc=''){const tr=document.createElement('tr');tr.innerHTML=`<td><select class="lineAccount" required>${accountOptions(account)}</select></td><td><input class="lineDesc" placeholder="Line note" value="${esc(desc)}"></td><td><input class="lineDebit" type="number" min="0" step="0.01" value="0" inputmode="decimal"></td><td><input class="lineCredit" type="number" min="0" step="0.01" value="0" inputmode="decimal"></td><td><button type="button" class="danger" onclick="this.closest('tr').remove();calcTotals()">×</button></td>`;document.getElementById('entryLines').appendChild(tr);tr.querySelectorAll('input').forEach(i=>i.addEventListener('input',calcTotals));calcTotals()}
+function val(id){return document.getElementById(id).value}
+function calcTotals(){let d=0,c=0;document.querySelectorAll('#entryLines tr').forEach(r=>{d+=Number(r.querySelector('.lineDebit').value)||0;c+=Number(r.querySelector('.lineCredit').value)||0});document.getElementById('totalDebit').textContent=d.toFixed(2);document.getElementById('totalCredit').textContent=c.toFixed(2);const diff=d-c;document.getElementById('difference').textContent=diff.toFixed(2);document.getElementById('difference').className='num '+(Math.abs(diff)<.005?'good':'bad')}
+function clearEntry(){document.getElementById('entryForm').reset();document.getElementById('entryLines').innerHTML='';addLine('1000');addLine('5100');document.getElementById('entryStatus').style.display='none';document.getElementById('entryDate').value=new Date().toISOString().slice(0,10)}
+function fillExpenseExample(){clearEntry();document.getElementById('entryDesc').value='Office rent paid';const rows=[...document.querySelectorAll('#entryLines tr')];rows[0].querySelector('.lineAccount').value='5100';rows[0].querySelector('.lineDebit').value='10000';rows[1].querySelector('.lineAccount').value='1000';rows[1].querySelector('.lineCredit').value='10000';calcTotals()}
+document.getElementById('entryForm').addEventListener('submit',e=>{e.preventDefault();const lines=[...document.querySelectorAll('#entryLines tr')].map(r=>({account:r.querySelector('.lineAccount').value,desc:r.querySelector('.lineDesc').value.trim(),debit:Math.round((Number(r.querySelector('.lineDebit').value)||0)*100)/100,credit:Math.round((Number(r.querySelector('.lineCredit').value)||0)*100)/100})).filter(l=>l.debit||l.credit);const d=lines.reduce((s,l)=>s+l.debit,0),c=lines.reduce((s,l)=>s+l.credit,0);if(lines.length<2)return alert('Please add at least two non-zero journal lines.');if(lines.some(l=>l.debit>0&&l.credit>0))return alert('A line cannot have both Debit and Credit.');if(Math.abs(d-c)>.009)return alert('Entry is not balanced. Debit and Credit must be equal.');if(!val('entryDesc').trim())return alert('Enter a description.');data.entries.push({id:data.nextId++,date:val('entryDate'),ref:val('entryRef').trim(),desc:val('entryDesc').trim(),lines});save();const st=document.getElementById('entryStatus');st.textContent='Entry saved successfully.';st.style.display='block';clearEntry();refresh()});
+['entryFrom','entryTo','entrySearch'].forEach(id=>document.getElementById(id).addEventListener('input',renderEntries));
+function filteredEntries(){const from=val('entryFrom'),to=val('entryTo'),q=val('entrySearch').toLowerCase();return data.entries.filter(e=>(!from||e.date>=from)&&(!to||e.date<=to)&&(!q||(e.desc+' '+e.ref).toLowerCase().includes(q))).slice().sort((a,b)=>b.date.localeCompare(a.date)||b.id-a.id)}
+function renderEntries(){const arr=filteredEntries();document.getElementById('entriesTable').innerHTML=arr.length?`<div class="tablewrap"><table><thead><tr><th>Date</th><th>Ref</th><th>Description</th><th class="num">Debit</th><th class="num">Credit</th><th></th></tr></thead><tbody>${arr.map(e=>{let d=e.lines.reduce((s,l)=>s+l.debit,0),c=e.lines.reduce((s,l)=>s+l.credit,0);return `<tr><td>${esc(e.date)}</td><td>${esc(e.ref)}</td><td>${esc(e.desc)}</td><td class="num">${d.toFixed(2)}</td><td class="num">${c.toFixed(2)}</td><td><button class="secondary" onclick="viewEntry(${e.id})">View</button> <button class="danger" onclick="deleteEntry(${e.id})">Delete</button></td></tr>`}).join('')}</tbody></table></div>`:'<div class="empty">No entries found.</div>'}
+function viewEntry(id){const e=data.entries.find(x=>x.id===id);if(!e)return;alert(`${e.date} | ${e.ref}\n${e.desc}\n\n`+e.lines.map(l=>`${l.account} ${acct(l.account)?.name||''}: Dr ${l.debit.toFixed(2)} / Cr ${l.credit.toFixed(2)}${l.desc?' — '+l.desc:''}`).join('\n'))}
+function deleteEntry(id){if(!confirm('Delete this journal entry? This will change account balances.'))return;data.entries=data.entries.filter(e=>e.id!==id);save();refresh()}
+function renderLedger(){const code=val('ledgerAccount'),from=val('ledgerFrom'),to=val('ledgerTo'),a=acct(code);if(!a){document.getElementById('ledgerTable').innerHTML='<div class="empty">Choose an account.</div>';return}let run=balance(code,from?new Date(new Date(from).getTime()-86400000).toISOString().slice(0,10):null);let rows=[];const arr=data.entries.filter(e=>(!from||e.date>=from)&&(!to||e.date<=to)&&e.lines.some(l=>l.account===code)).slice().sort((x,y)=>x.date.localeCompare(y.date)||x.id-y.id);let opening=run;arr.forEach(e=>e.lines.filter(l=>l.account===code).forEach(l=>{run+=a.normal==='Credit'?(l.credit-l.debit):(l.debit-l.credit);rows.push(`<tr><td>${esc(e.date)}</td><td>${esc(e.ref)}</td><td>${esc(e.desc)}${l.desc?' — '+esc(l.desc):''}</td><td class="num">${l.debit.toFixed(2)}</td><td class="num">${l.credit.toFixed(2)}</td><td class="num">${money(run)}</td></tr>`)}));document.getElementById('ledgerTable').innerHTML=`<h3>${esc(a.code)} — ${esc(a.name)}</h3><p>Opening balance: <b>${money(opening)}</b></p><div class="tablewrap"><table><thead><tr><th>Date</th><th>Ref</th><th>Description</th><th class="num">Debit</th><th class="num">Credit</th><th class="num">Running Balance</th></tr></thead><tbody>${rows.join('')||'<tr><td colspan="6" class="empty">No activity for selected period.</td></tr>'}</tbody></table></div><p><b>Closing balance: ${money(run)}</b></p>`}
+function renderReports(){const from=val('reportFrom'),to=val('reportTo');let arr=data.accounts.slice().sort((a,b)=>a.code.localeCompare(b.code,undefined,{numeric:true}));let dr=0,cr=0;const rows=arr.map(a=>{let n=accountNet(a,from,to);let debit=a.normal==='Debit'?n:0,credit=a.normal==='Credit'?n:0;if(debit>=0)dr+=debit;else cr+=-debit;if(credit>=0)cr+=credit;else dr+=-credit;return `<tr><td>${esc(a.code)}</td><td>${esc(a.name)}</td><td>${esc(a.type)}</td><td class="num">${debit>0?debit.toFixed(2):''}</td><td class="num">${credit>0?credit.toFixed(2):''}</td><td class="num">${money(n)}</td></tr>`});document.getElementById('trialBalance').innerHTML=`<div class="tablewrap"><table><thead><tr><th>Code</th><th>Account</th><th>Type</th><th class="num">Debit</th><th class="num">Credit</th><th class="num">Net Balance</th></tr></thead><tbody>${rows.join('')}<tr><th colspan="3">Totals (net-normal)</th><th class="num">${dr.toFixed(2)}</th><th class="num">${cr.toFixed(2)}</th><th></th></tr></tbody></table></div>`;
+const inc=totalsByType('Income',from,to),exp=totalsByType('Expense',from,to),profit=inc-exp;document.getElementById('profitLoss').innerHTML=`<table><tbody><tr><td>Income</td><td class="num">${money(inc)}</td></tr><tr><td>Expenses</td><td class="num">${money(exp)}</td></tr><tr><th>${profit>=0?'Net Profit':'Net Loss'}</th><th class="num">${money(Math.abs(profit))}</th></tr></tbody></table><p class="note">Based on entries in the selected date range.</p>`;
+const assets=totalsByType('Asset'),liab=totalsByType('Liability'),equity=totalsByType('Equity')+profit;document.getElementById('balanceSheet').innerHTML=`<table><tbody><tr><td>Assets</td><td class="num">${money(assets)}</td></tr><tr><td>Liabilities</td><td class="num">${money(liab)}</td></tr><tr><td>Equity (incl. current profit/loss)</td><td class="num">${money(equity)}</td></tr><tr><th>Liabilities + Equity</th><th class="num">${money(liab+equity)}</th></tr></tbody></table><p class="note">Balance sheet uses all-time asset/liability/equity balances and adds selected-period profit/loss; for formal accounts, close prior-period income and expense accounts into equity.</p>`}
+function refreshDashboard(){document.getElementById('dashCash').textContent=money(balance('1000'));document.getElementById('dashBank').textContent=money(balance('1010'));document.getElementById('dashIncome').textContent=money(totalsByType('Income'));document.getElementById('dashExpense').textContent=money(totalsByType('Expense'));document.getElementById('dashAssets').textContent=money(totalsByType('Asset'));document.getElementById('dashLiabilities').textContent=money(totalsByType('Liability'));const arr=data.entries.slice().sort((a,b)=>b.date.localeCompare(a.date)||b.id-a.id).slice(0,6);document.getElementById('recentEntries').innerHTML=arr.length?`<div class="tablewrap"><table><thead><tr><th>Date</th><th>Reference</th><th>Description</th><th class="num">Amount</th></tr></thead><tbody>${arr.map(e=>`<tr><td>${esc(e.date)}</td><td>${esc(e.ref)}</td><td>${esc(e.desc)}</td><td class="num">${money(e.lines.reduce((s,l)=>s+l.debit,0))}</td></tr>`).join('')}</tbody></table></div>`:'<div class="empty">No entries yet. Start by adding a journal entry.</div>'}
+function refresh(){renderAccounts();renderEntries();refreshDashboard();renderPartiesItems();document.getElementById('ledgerAccount').innerHTML=accountOptions(val('ledgerAccount'));document.getElementById('businessName').value=data.settings.businessName||'';document.getElementById('currency').value=data.settings.currency||'PKR';if(document.getElementById('ledgerTable').innerHTML)renderLedger()}
+function quickEntry(type){document.querySelector('[data-tab="entries"]').click();clearEntry();if(type==='expense'){document.getElementById('entryDesc').value='Expense paid';document.querySelectorAll('#entryLines tr')[0].querySelector('.lineAccount').value='5100';document.querySelectorAll('#entryLines tr')[1].querySelector('.lineAccount').value='1000'}else if(type==='income'){document.getElementById('entryDesc').value='Income received';document.querySelectorAll('#entryLines tr')[0].querySelector('.lineAccount').value='1000';document.querySelectorAll('#entryLines tr')[1].querySelector('.lineAccount').value='4000'}else{document.getElementById('entryDesc').value='Cash deposited into bank';document.querySelectorAll('#entryLines tr')[0].querySelector('.lineAccount').value='1010';document.querySelectorAll('#entryLines tr')[1].querySelector('.lineAccount').value='1000'}}
+document.getElementById('settingsForm').addEventListener('submit',e=>{e.preventDefault();data.settings.businessName=val('businessName').trim();data.settings.currency=val('currency');save();refresh();alert('Settings saved.')});
+function exportBackup(){const blob=new Blob([JSON.stringify(data,null,2)],{type:'application/json'}),url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download='accounting-backup-'+new Date().toISOString().slice(0,10)+'.json';a.click();URL.revokeObjectURL(url)}
+document.getElementById('restoreFile').addEventListener('change',async e=>{const f=e.target.files[0];if(!f)return;try{const obj=JSON.parse(await f.text());if(!Array.isArray(obj.accounts)||!Array.isArray(obj.entries))throw new Error('Invalid backup');if(!confirm('Restore backup? Current local data will be replaced.'))return;data=obj;if(!data.parties)data.parties=[];if(!data.items)data.items=[];if(!data.settings)data.settings={businessName:'',currency:'PKR'};save();refresh();alert('Backup restored.')}catch(err){alert('Could not restore this file. Please select a valid backup created by this app.')}e.target.value=''});
+function resetAll(){if(!confirm('Are you sure? All accounts and entries saved in this browser will be permanently deleted.'))return;if(!confirm('Final confirmation: export a backup first if you need the data. Reset now?'))return;localStorage.removeItem(STORE);data={accounts:defaults.map(a=>({...a})),entries:[],settings:{businessName:'',currency:'PKR'},parties:[],items:[],nextId:1};save();clearEntry();refresh();alert('All data reset.')}
+
+// Business vouchers, party ledgers, stock control and bank reconciliation
+let clearedBankEntries = new Set();
+function normalizeName(s){return String(s||'').trim().toLowerCase()}
+function updatePartyList(){
+ const dl=document.getElementById('partyList'); if(!dl)return;
+ dl.innerHTML=(data.parties||[]).map(p=>`<option value="${esc(p.name)}"></option>`).join('');
+ document.getElementById('itemList').innerHTML=(data.items||[]).map(i=>`<option value="${esc(i.name)}"></option>`).join('');
+}
+function renderPartiesItems(){
+ updatePartyList();
+ const pt=document.getElementById('partiesTable'), it=document.getElementById('itemsTable');
+ if(pt) pt.innerHTML=data.parties.length?`<div class="tablewrap"><table><thead><tr><th>Name</th><th>Type</th><th class="num">Ledger Balance</th></tr></thead><tbody>${data.parties.map(p=>{
+   const codes=p.type==='Vendor'?['2000']:p.type==='Customer'?['1100']:['1100','2000'];
+   let b=0; data.entries.forEach(e=>{if(normalizeName(e.party)===normalizeName(p.name))e.lines.forEach(l=>{if(codes.includes(l.account)){const a=acct(l.account);b+=a?.normal==='Credit'?(l.credit-l.debit):(l.debit-l.credit)}})});
+   return `<tr><td>${esc(p.name)}</td><td>${esc(p.type)}</td><td class="num">${money(b)}</td></tr>`
+ }).join('')}</tbody></table></div>`:'<div class="empty">No customers or vendors added.</div>';
+ if(it) it.innerHTML=data.items.length?`<div class="tablewrap"><table><thead><tr><th>Item</th><th class="num">Quantity on Hand</th><th class="num">Average Cost</th><th class="num">Stock Value</th></tr></thead><tbody>${data.items.map(i=>`<tr><td>${esc(i.name)}</td><td class="num">${Number(i.qty||0).toFixed(3)}</td><td class="num">${money(i.avgCost||0)}</td><td class="num">${money((i.qty||0)*(i.avgCost||0))}</td></tr>`).join('')}</tbody></table></div>`:'<div class="empty">No stock items added.</div>';
+}
+document.getElementById('partyForm').addEventListener('submit',e=>{
+ e.preventDefault();const name=val('partyName').trim(),type=val('partyType');
+ if(data.parties.some(p=>normalizeName(p.name)===normalizeName(name)))return alert('This party already exists.');
+ data.parties.push({name,type});save();e.target.reset();renderPartiesItems();alert('Party saved.');
+});
+document.getElementById('itemForm').addEventListener('submit',e=>{
+ e.preventDefault();const name=val('itemName').trim();if(data.items.some(i=>normalizeName(i.name)===normalizeName(name)))return alert('This item already exists.');
+ const qty=Number(val('itemOpeningQty'))||0,cost=Number(val('itemOpeningCost'))||0;
+ data.items.push({name,qty,avgCost:cost});save();e.target.reset();renderPartiesItems();alert('Stock item saved. For opening stock value, also record the matching opening journal entry in Journal Entries.');
+});
+document.getElementById('voucherType').addEventListener('change',()=>{
+ const t=val('voucherType'), party=document.getElementById('vParty'),item=document.getElementById('vItem'),qty=document.getElementById('vQty');
+ party.disabled=t==='stockadjust'; item.disabled=!(t==='purchase'||t==='sale'||t==='stockadjust');qty.disabled=!(t==='purchase'||t==='sale'||t==='stockadjust');
+ if(t==='purchase')document.getElementById('vDesc').value='Purchase from vendor';
+ if(t==='sale')document.getElementById('vDesc').value='Sale to customer';
+ if(t==='vendorpay')document.getElementById('vDesc').value='Payment to vendor';
+ if(t==='customerreceipt')document.getElementById('vDesc').value='Receipt from customer';
+ if(t==='stockadjust')document.getElementById('vDesc').value='Stock adjustment';
+});
+function clearVoucher(){document.getElementById('voucherForm').reset();document.getElementById('vDate').value=new Date().toISOString().slice(0,10);document.getElementById('vQty').value='1';document.getElementById('voucherStatus').style.display='none'}
+function createVoucherEntry(date,ref,desc,party,lines){
+ const d=lines.reduce((s,l)=>s+l.debit,0),c=lines.reduce((s,l)=>s+l.credit,0);
+ if(Math.abs(d-c)>.009)throw new Error('Voucher totals are not balanced.');
+ data.entries.push({id:data.nextId++,date,ref,desc,party:party||'',lines});
+}
+document.getElementById('voucherForm').addEventListener('submit',e=>{
+ e.preventDefault();const type=val('voucherType'),date=val('vDate'),ref=val('vRef').trim(),party=val('vParty').trim(),desc=val('vDesc').trim(),cash=val('vCashBank'),itemName=val('vItem').trim(),qty=Number(val('vQty'))||0,rate=Number(val('vRate'))||0;
+ if(rate<=0)return alert('Enter a rate or amount greater than zero.');
+ if((type==='purchase'||type==='sale'||type==='vendorpay'||type==='customerreceipt')&&!party)return alert('Enter the customer/vendor name.');
+ let lines=[],amount=rate;
+ try{
+  if(type==='purchase'){
+   if(!itemName||qty<=0)return alert('Select an item and enter a quantity.');
+   let item=data.items.find(i=>normalizeName(i.name)===normalizeName(itemName));if(!item)return alert('Add this stock item in Party & Stock Setup first.');
+   amount=qty*rate;
+   const oldValue=(item.qty||0)*(item.avgCost||0),newQty=(item.qty||0)+qty;item.avgCost=newQty>0?(oldValue+amount)/newQty:rate;item.qty=newQty;
+   lines=[{account:'1200',desc:itemName+' purchase',debit:amount,credit:0},{account:'2000',desc:'Payable to '+party,debit:0,credit:amount}];
+  }else if(type==='sale'){
+   if(!itemName||qty<=0)return alert('Select an item and enter a quantity.');
+   let item=data.items.find(i=>normalizeName(i.name)===normalizeName(itemName));if(!item)return alert('Add this stock item in Party & Stock Setup first.');
+   if(Number(item.qty||0)<qty)return alert('Not enough stock. Available: '+Number(item.qty||0));
+   amount=rate;
+   const cost=qty*(Number(item.avgCost)||0);item.qty=Number(item.qty)-qty;
+   lines=[{account:'1100',desc:'Receivable from '+party,debit:amount,credit:0},{account:'4000',desc:'Sales: '+itemName,debit:0,credit:amount}];
+   if(cost>0){lines.push({account:'5000',desc:'Cost of goods sold: '+itemName,debit:cost,credit:0},{account:'1200',desc:'Inventory issued: '+itemName,debit:0,credit:cost})}
+  }else if(type==='vendorpay'){
+   lines=[{account:'2000',desc:'Vendor payment: '+party,debit:rate,credit:0},{account:cash,desc:'Paid from '+(cash==='1000'?'Cash':'Bank'),debit:0,credit:rate}];
+  }else if(type==='customerreceipt'){
+   lines=[{account:cash,desc:'Received in '+(cash==='1000'?'Cash':'Bank'),debit:rate,credit:0},{account:'1100',desc:'Customer receipt: '+party,debit:0,credit:rate}];
+  }else if(type==='stockadjust'){
+   if(!itemName||qty<=0)return alert('Select an item and enter adjustment quantity.');
+   let item=data.items.find(i=>normalizeName(i.name)===normalizeName(itemName));if(!item)return alert('Add this stock item first.');
+   const adjustValue=qty*(Number(item.avgCost)||rate);
+   if(val('vDesc').toLowerCase().includes('reduce')||val('vDesc').toLowerCase().includes('damage')){
+    if(item.qty<qty)return alert('Adjustment quantity exceeds stock on hand.');item.qty-=qty;
+    lines=[{account:'5900',desc:'Stock loss: '+itemName,debit:adjustValue,credit:0},{account:'1200',desc:'Stock reduction: '+itemName,debit:0,credit:adjustValue}];
+   }else{
+    item.qty+=qty;lines=[{account:'1200',desc:'Stock increase: '+itemName,debit:adjustValue,credit:0},{account:'3100',desc:'Stock adjustment offset',debit:0,credit:adjustValue}];
+   }
+  }
+  createVoucherEntry(date,ref,desc,party,lines);save();refresh();renderPartiesItems();renderBankReconciliation();
+  const st=document.getElementById('voucherStatus');st.textContent='Voucher saved and accounting entry posted.';st.style.display='block';clearVoucher();
+ }catch(err){alert(err.message||'Could not save voucher.')}
+});
+function bankEntries(){return data.entries.filter(e=>e.lines.some(l=>l.account==='1010'))}
+function renderBankReconciliation(){
+ const arr=bankEntries().slice().sort((a,b)=>a.date.localeCompare(b.date)||a.id-b.id);
+ const opening=balance('1010'),statement=Number(val('bankStatementBalance'));
+ const cleared=arr.filter(e=>clearedBankEntries.has(e.id));
+ const clearedBalance=cleared.reduce((s,e)=>s+e.lines.filter(l=>l.account==='1010').reduce((x,l)=>x+l.debit-l.credit,0),0);
+ const summary=document.getElementById('bankReconSummary');
+ if(summary)summary.innerHTML=`<div class="cards" style="margin-top:12px"><div class="card"><div class="label">Book Bank Balance</div><div class="num">${money(opening)}</div></div><div class="card"><div class="label">Cleared Entries Net</div><div class="num">${money(clearedBalance)}</div></div><div class="card"><div class="label">Statement Balance</div><div class="num">${val('bankStatementBalance')!==''?money(statement):'Not entered'}</div></div><div class="card"><div class="label">Statement vs Cleared Difference</div><div class="num">${val('bankStatementBalance')!==''?money(statement-clearedBalance):'—'}</div></div></div>`;
+ const table=document.getElementById('bankReconTable');
+ if(table)table.innerHTML=arr.length?`<div class="tablewrap"><table><thead><tr><th>Date</th><th>Ref</th><th>Description</th><th class="num">Debit</th><th class="num">Credit</th><th>Cleared?</th></tr></thead><tbody>${arr.map(e=>{const ls=e.lines.filter(l=>l.account==='1010'),d=ls.reduce((s,l)=>s+l.debit,0),c=ls.reduce((s,l)=>s+l.credit,0);return `<tr><td>${esc(e.date)}</td><td>${esc(e.ref)}</td><td>${esc(e.desc)}</td><td class="num">${d.toFixed(2)}</td><td class="num">${c.toFixed(2)}</td><td><input type="checkbox" ${clearedBankEntries.has(e.id)?'checked':''} onchange="toggleCleared(${e.id},this.checked)" style="width:auto"></td></tr>`}).join('')}</tbody></table></div>`:'<div class="empty">No bank-account entries found.</div>';
+}
+function toggleCleared(id,checked){if(checked)clearedBankEntries.add(id);else clearedBankEntries.delete(id);renderBankReconciliation()}
+function exportClearedBankCSV(){const arr=bankEntries();let csv='Date,Reference,Description,Debit,Credit,Cleared\n'+arr.map(e=>{const ls=e.lines.filter(l=>l.account==='1010'),d=ls.reduce((s,l)=>s+l.debit,0),c=ls.reduce((s,l)=>s+l.credit,0);return [e.date,e.ref,e.desc,d.toFixed(2),c.toFixed(2),clearedBankEntries.has(e.id)?'Yes':'No'].map(v=>'"'+String(v??'').replace(/"/g,'""')+'"').join(',')}).join('\n');const blob=new Blob([csv],{type:'text/csv'}),url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download='bank-reconciliation.csv';a.click();URL.revokeObjectURL(url)}
+
+async function startOnlineApp(){
+ const msg=document.getElementById('loginMsg');
+ try{
+  if(!window.supabase||!window.ACCOUNTING_CONFIG||!ACCOUNTING_CONFIG.url||!ACCOUNTING_CONFIG.anonKey){msg.textContent='Setup incomplete: edit config.js with your Supabase Project URL and anon/publishable key.';setCloudStatus('Setup required',true);return;}
+  cloudClient=window.supabase.createClient(ACCOUNTING_CONFIG.url,ACCOUNTING_CONFIG.anonKey);
+  document.getElementById('loginForm').addEventListener('submit',async e=>{e.preventDefault();msg.textContent='Signing in…';const email=document.getElementById('loginEmail').value.trim(),password=document.getElementById('loginPassword').value;const {data:res,error}=await cloudClient.auth.signInWithPassword({email,password});if(error){msg.textContent=error.message;return;}await afterLogin(res.user);});
+  const {data:sessionData,error}=await cloudClient.auth.getSession();if(error)throw error;
+  if(sessionData.session)await afterLogin(sessionData.session.user);
+ }catch(e){msg.textContent=e.message||'Could not connect to the online database.';setCloudStatus('Connection error',true);}
+}
+async function afterLogin(user){
+ cloudUser=user;document.getElementById('cloudUser').textContent=user.email||'Signed in';
+ try{await load();cloudReady=true;document.getElementById('loginGate').style.display='none';document.getElementById('vDate').value=new Date().toISOString().slice(0,10);document.getElementById('entryDate').value=new Date().toISOString().slice(0,10);addLine('1000');addLine('5100');refresh();renderReports();clearVoucher();renderPartiesItems();renderBankReconciliation();}
+ catch(e){cloudReady=false;document.getElementById('loginGate').style.display='flex';document.getElementById('loginMsg').textContent='Signed in, but database access failed. Check SQL/RLS setup. '+(e.message||'');setCloudStatus('Database access error',true);}
+}
+startOnlineApp();
+</script>
+</body></html>
