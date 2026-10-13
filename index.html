@@ -63,15 +63,12 @@ th,td{padding:10px 12px}
 .status{border-radius:6px}
 @media(max-width:760px){header{margin-left:0;padding:14px 16px}nav{position:sticky;top:42px;bottom:auto;width:100%;height:auto;flex-direction:row;overflow-x:auto;padding:8px;background:#262a33;gap:5px}nav:before{display:none}nav button{width:auto;min-width:max-content;text-align:center;padding:9px 11px}main{margin-left:0;padding:14px}.cards{grid-template-columns:repeat(2,minmax(0,1fr))}header h1{font-size:20px}}
 @media(max-width:420px){.cards{grid-template-columns:1fr}.grid2{grid-template-columns:1fr}}
-/* Odoo-like purchase and payment workspaces */
-.odoo-toolbar{display:flex;justify-content:space-between;align-items:flex-start;gap:16px;flex-wrap:wrap;border-bottom:1px solid #e5e7eb;padding-bottom:14px;margin-bottom:18px}
-.odoo-toolbar h2{font-size:23px;margin:5px 0 2px;color:#202a36}
-.odoo-toolbar .actions{margin-top:0}
-.crumb{font-size:12px;color:#8a607e;font-weight:650}
-#voucherScreenSub{margin:3px 0 0}
-#voucherWorkspace .fields{grid-template-columns:repeat(auto-fit,minmax(210px,1fr))}
-#voucherWorkspace #postingHint{background:#f8f4f7!important;border-color:#714b67!important}
 
+
+.pagebar{display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap;margin-bottom:16px;padding-bottom:13px;border-bottom:1px solid #d9dce2}
+.pagebar h2{font-size:23px;margin:3px 0 4px;color:#202a36}.crumb{font-size:10px;font-weight:800;letter-spacing:1.2px;color:#8a7184}.pagebar .note{margin:0}
+#purchaseScreen .panel,#paymentScreen .panel,#banking .panel{border-radius:4px;box-shadow:0 1px 2px #00000008}
+#purchaseScreen .pill,#paymentScreen .pill{background:#f3edf2;color:#714b67;font-weight:700;letter-spacing:.4px}
 </style>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="config.js"></script>
@@ -96,10 +93,11 @@ th,td{padding:10px 12px}
 <button data-tab="accounts">Chart of Accounts</button>
 <button data-tab="entries">Journal Entries</button>
 <button data-tab="vouchers">All Vouchers</button>
-<button data-action="purchase">Purchases</button>
+<button data-tab="purchaseScreen">Purchases</button>
+<button data-tab="paymentScreen">Payments</button>
 <button data-action="sale">Sales</button>
-<button data-action="vendorpay">Payments</button>
 <button data-action="customerreceipt">Receipts</button>
+<button data-tab="banking">Banking & Reconciliation</button>
 <button data-tab="customers">Customers</button>
 <button data-tab="vendors">Vendors</button>
 <button data-tab="partyLedger">Party Ledger</button>
@@ -108,6 +106,47 @@ th,td{padding:10px 12px}
 <button data-tab="backup">Backup & Settings</button>
 </nav>
 <main>
+
+<section id="purchaseScreen" class="tab">
+  <div class="pagebar"><div><div class="crumb">PURCHASES / VENDOR BILLS</div><h2>Vendor Bills</h2><p class="note">Enter a supplier invoice and post it to Inventory and Accounts Payable.</p></div><button type="button" onclick="goTab('vouchers')" class="secondary">Advanced Vouchers</button></div>
+  <div class="panel">
+    <div class="actions" style="margin-top:0;margin-bottom:14px"><span class="pill">NEW BILL</span><span class="pill">POSTS TO LEDGER</span></div>
+    <form id="purchaseScreenForm"><div class="fields">
+      <div class="field"><label>Bill Date</label><input id="pDate" type="date" required></div>
+      <div class="field"><label>Vendor</label><input id="pVendor" list="partyList" required placeholder="Select or enter vendor"></div>
+      <div class="field"><label>Vendor Bill Reference</label><input id="pRef" placeholder="e.g. BILL/2026/001"></div>
+      <div class="field"><label>Product / Stock Item</label><input id="pItem" list="itemList" required placeholder="Choose stock item"></div>
+      <div class="field"><label>Quantity</label><input id="pQty" type="number" min="0.001" step="0.001" value="1" required></div>
+      <div class="field"><label>Unit Price (PKR)</label><input id="pRate" type="number" min="0.01" step="0.01" required placeholder="0.00"></div>
+      <div class="field"><label>Bill Description</label><input id="pDesc" placeholder="Purchase from vendor"></div>
+    </div><div class="note" id="purchaseTotal">Total: PKR 0.00</div><div class="actions"><button type="submit">Confirm & Post Bill</button><button class="secondary" type="reset">Clear</button></div><div class="status" id="purchaseScreenStatus"></div></form>
+  </div>
+  <div class="panel" style="margin-top:14px"><h2>Vendor Bills / Purchase History</h2><div id="purchaseHistory"></div></div>
+</section>
+<section id="paymentScreen" class="tab">
+  <div class="pagebar"><div><div class="crumb">ACCOUNTING / PAYMENTS</div><h2>Vendor Payments</h2><p class="note">Register payments to vendors and select the exact journal account used.</p></div><button type="button" onclick="goTab('partyLedger')" class="secondary">Open Vendor Ledger</button></div>
+  <div class="panel"><div class="actions" style="margin-top:0;margin-bottom:14px"><span class="pill">OUTGOING PAYMENT</span><span class="pill">CASH / BANK</span></div>
+    <form id="paymentScreenForm"><div class="fields">
+      <div class="field"><label>Payment Date</label><input id="payDate" type="date" required></div>
+      <div class="field"><label>Vendor</label><input id="payVendor" list="partyList" required placeholder="Select vendor"></div>
+      <div class="field"><label>Payment Reference</label><input id="payRef" placeholder="e.g. PAY/2026/001"></div>
+      <div class="field"><label>Payment Account / Journal</label><select id="payAccount"><option value="1010">Bank Alfalah</option><option value="1000">Cash</option></select></div>
+      <div class="field"><label>Amount (PKR)</label><input id="payAmount" type="number" min="0.01" step="0.01" required placeholder="0.00"></div>
+      <div class="field"><label>Memo</label><input id="payDesc" placeholder="Payment to vendor"></div>
+    </div><div class="note" id="paymentPostingPreview">Posting preview: Vendor Payable Dr · Bank Alfalah Cr.</div><div class="actions"><button type="submit">Register Payment</button><button class="secondary" type="reset">Clear</button></div><div class="status" id="paymentScreenStatus"></div></form>
+  </div>
+  <div class="panel" style="margin-top:14px"><h2>Payment History</h2><div id="paymentHistory"></div></div>
+</section>
+<section id="banking" class="tab">
+  <div class="pagebar"><div><div class="crumb">ACCOUNTING / BANKING</div><h2>Bank Reconciliation</h2><p class="note">Compare the Bank Alfalah book balance with your statement and mark transactions cleared.</p></div><button class="secondary" onclick="exportClearedBankCSV()">Export CSV</button></div>
+  <div class="panel" style="margin-top:14px"><h2>Bank Reconciliation</h2>
+<p class="note">Mark bank-account journal entries as cleared to compare the book balance with your bank statement. Only entries posted to Bank Alfalah are shown.</p>
+<div class="fields"><div class="field"><label>Statement Closing Balance (PKR)</label><input id="bankStatementBalance" type="number" step="0.01" placeholder="Enter bank statement balance"></div></div>
+<div class="actions"><button onclick="renderBankReconciliation()">Refresh Reconciliation</button><button class="secondary" onclick="exportClearedBankCSV()">Export Bank Entries CSV</button></div>
+<div id="bankReconSummary"></div><div id="bankReconTable"></div>
+</div>
+</section>
+
 <section id="dashboard" class="tab active">
 <div class="cards">
 <div class="card"><div class="label">Cash Balance</div><div class="num" id="dashCash">PKR 0.00</div></div>
@@ -157,7 +196,7 @@ th,td{padding:10px 12px}
 
 <section id="vouchers" class="tab">
 <div class="grid2">
-<div class="panel" id="voucherWorkspace"><div class="odoo-toolbar"><div><div class="crumb">Accounting / <span id="voucherCrumb">Vouchers</span></div><h2 id="voucherScreenTitle">Business Voucher Entry</h2><p id="voucherScreenSub" class="note">Create and manage accounting transactions.</p></div><div class="actions"><button type="button" class="secondary" onclick="quickVoucher('purchase')">New Bill</button><button type="button" class="secondary" onclick="quickVoucher('vendorpay')">New Payment</button></div></div>
+<div class="panel"><h2>Business Voucher Entry</h2>
 <p class="note">Record purchases, sales, vendor payments, customer receipts and stock adjustments. Changes sync to the shared company account when cloud status shows synced.</p>
 <div class="field"><label>Voucher Type</label><select id="voucherType"><option value="purchase">Purchase from Vendor</option><option value="sale">Sale to Customer</option><option value="vendorpay">Vendor Payment</option><option value="customerreceipt">Customer Receipt</option><option value="stockadjust">Stock Adjustment</option></select></div>
 <div class="note" id="postingHint" style="background:#f5f0f4;border-left:4px solid #714b67;padding:10px 12px;border-radius:6px;margin:10px 0">Odoo-style posting: choose a voucher type to preview its automatic Debit/Credit entry.</div>
@@ -166,7 +205,7 @@ th,td{padding:10px 12px}
 <div class="field"><label>Date</label><input type="date" id="vDate" required></div>
 <div class="field"><label>Voucher / Invoice No.</label><input id="vRef" placeholder="e.g. PUR-001"></div>
 <div class="field"><label>Party Name</label><input id="vParty" list="partyList" placeholder="Enter vendor/customer name"><datalist id="partyList"></datalist></div>
-<div class="field" id="cashBankField"><label id="cashBankLabel">Payment / Receipt Account</label><select id="vCashBank"><option value="1000">Cash</option><option value="1010">Bank Alfalah</option></select></div>
+<div class="field"><label>Payment / Receipt Account</label><select id="vCashBank"><option value="1000">Cash</option><option value="1010">Bank Alfalah</option></select></div>
 <div class="field"><label>Item (for purchase/sale/stock)</label><input id="vItem" list="itemList" placeholder="Item name"><datalist id="itemList"></datalist></div>
 <div class="field"><label>Quantity</label><input id="vQty" type="number" min="0" step="0.001" value="1"></div>
 <div class="field"><label>Unit Rate for Purchase / Total Amount for Others (PKR)</label><input id="vRate" type="number" min="0" step="0.01" required placeholder="0.00"></div>
@@ -194,12 +233,7 @@ th,td{padding:10px 12px}
 <div class="panel"><h2>Customers & Vendors</h2><p class="note">Use the Customers and Vendors tabs for a separate directory and ledger access.</p><div id="partiesTable"></div></div>
 <div class="panel"><h2>Stock Inventory</h2><div id="itemsTable"></div></div>
 </div>
-<div class="panel" style="margin-top:14px"><h2>Bank Reconciliation</h2>
-<p class="note">Mark bank-account journal entries as cleared to compare the book balance with your bank statement. Only entries posted to Bank Alfalah are shown.</p>
-<div class="fields"><div class="field"><label>Statement Closing Balance (PKR)</label><input id="bankStatementBalance" type="number" step="0.01" placeholder="Enter bank statement balance"></div></div>
-<div class="actions"><button onclick="renderBankReconciliation()">Refresh Reconciliation</button><button class="secondary" onclick="exportClearedBankCSV()">Export Bank Entries CSV</button></div>
-<div id="bankReconSummary"></div><div id="bankReconTable"></div>
-</div>
+
 </section>
 
 <section id="ledger" class="tab">
@@ -283,7 +317,7 @@ function renderReports(){const from=val('reportFrom'),to=val('reportTo');let arr
 const inc=totalsByType('Income',from,to),exp=totalsByType('Expense',from,to),profit=inc-exp;document.getElementById('profitLoss').innerHTML=`<table><tbody><tr><td>Income</td><td class="num">${money(inc)}</td></tr><tr><td>Expenses</td><td class="num">${money(exp)}</td></tr><tr><th>${profit>=0?'Net Profit':'Net Loss'}</th><th class="num">${money(Math.abs(profit))}</th></tr></tbody></table><p class="note">Based on entries in the selected date range.</p>`;
 const assets=totalsByType('Asset'),liab=totalsByType('Liability'),equity=totalsByType('Equity')+profit;document.getElementById('balanceSheet').innerHTML=`<table><tbody><tr><td>Assets</td><td class="num">${money(assets)}</td></tr><tr><td>Liabilities</td><td class="num">${money(liab)}</td></tr><tr><td>Equity (incl. current profit/loss)</td><td class="num">${money(equity)}</td></tr><tr><th>Liabilities + Equity</th><th class="num">${money(liab+equity)}</th></tr></tbody></table><p class="note">Balance sheet uses all-time asset/liability/equity balances and adds selected-period profit/loss; for formal accounts, close prior-period income and expense accounts into equity.</p>`}
 function refreshDashboard(){document.getElementById('dashCash').textContent=money(balance('1000'));document.getElementById('dashBank').textContent=money(balance('1010'));document.getElementById('dashIncome').textContent=money(totalsByType('Income'));document.getElementById('dashExpense').textContent=money(totalsByType('Expense'));document.getElementById('dashAssets').textContent=money(totalsByType('Asset'));document.getElementById('dashLiabilities').textContent=money(totalsByType('Liability'));const arr=data.entries.slice().sort((a,b)=>b.date.localeCompare(a.date)||b.id-a.id).slice(0,6);document.getElementById('recentEntries').innerHTML=arr.length?`<div class="tablewrap"><table><thead><tr><th>Date</th><th>Reference</th><th>Description</th><th class="num">Amount</th></tr></thead><tbody>${arr.map(e=>`<tr><td>${esc(e.date)}</td><td>${esc(e.ref)}</td><td>${esc(e.desc)}</td><td class="num">${money(e.lines.reduce((s,l)=>s+l.debit,0))}</td></tr>`).join('')}</tbody></table></div>`:'<div class="empty">No entries yet. Start by adding a journal entry.</div>'}
-function refresh(){renderAccounts();renderEntries();refreshDashboard();renderPartiesItems();renderPartyDirectories();document.getElementById('ledgerAccount').innerHTML=accountOptions(val('ledgerAccount'));document.getElementById('businessName').value=data.settings.businessName||'';document.getElementById('currency').value=data.settings.currency||'PKR';if(document.getElementById('ledgerTable').innerHTML)renderLedger()}
+function refresh(){renderAccounts();renderEntries();refreshDashboard();renderPartiesItems();renderPartyDirectories();document.getElementById('ledgerAccount').innerHTML=accountOptions(val('ledgerAccount'));document.getElementById('businessName').value=data.settings.businessName||'';document.getElementById('currency').value=data.settings.currency||'PKR';if(document.getElementById('ledgerTable').innerHTML)renderLedger();if(typeof renderPurchasePaymentHistory==='function')renderPurchasePaymentHistory()}
 function quickEntry(type){document.querySelector('[data-tab="entries"]').click();clearEntry();if(type==='expense'){document.getElementById('entryDesc').value='Expense paid';document.querySelectorAll('#entryLines tr')[0].querySelector('.lineAccount').value='5100';document.querySelectorAll('#entryLines tr')[1].querySelector('.lineAccount').value='1000'}else if(type==='income'){document.getElementById('entryDesc').value='Income received';document.querySelectorAll('#entryLines tr')[0].querySelector('.lineAccount').value='1000';document.querySelectorAll('#entryLines tr')[1].querySelector('.lineAccount').value='4000'}else{document.getElementById('entryDesc').value='Cash deposited into bank';document.querySelectorAll('#entryLines tr')[0].querySelector('.lineAccount').value='1010';document.querySelectorAll('#entryLines tr')[1].querySelector('.lineAccount').value='1000'}}
 document.getElementById('settingsForm').addEventListener('submit',e=>{e.preventDefault();data.settings.businessName=val('businessName').trim();data.settings.currency=val('currency');save();refresh();alert('Settings saved.')});
 function exportBackup(){const blob=new Blob([JSON.stringify(data,null,2)],{type:'application/json'}),url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download='accounting-backup-'+new Date().toISOString().slice(0,10)+'.json';a.click();URL.revokeObjectURL(url)}
@@ -326,7 +360,6 @@ document.getElementById('voucherType').addEventListener('change',()=>{
  if(t==='vendorpay')document.getElementById('vDesc').value='Payment to vendor';
  if(t==='customerreceipt')document.getElementById('vDesc').value='Receipt from customer';
  if(t==='stockadjust')document.getElementById('vDesc').value='Stock adjustment';
- configureVoucherScreen(t);
 });
 function clearVoucher(){document.getElementById('voucherForm').reset();document.getElementById('vDate').value=new Date().toISOString().slice(0,10);document.getElementById('vQty').value='1';document.getElementById('voucherStatus').style.display='none'}
 function createVoucherEntry(date,ref,desc,party,lines){
@@ -348,7 +381,6 @@ function updatePostingHint(){
  document.getElementById('voucherType').addEventListener('change',updatePostingHint);
  document.getElementById('vCashBank').addEventListener('change',updatePostingHint);
  updatePostingHint();
- configureVoucherScreen(val('voucherType'));
  document.getElementById('voucherForm').addEventListener('submit',e=>{
  e.preventDefault();const type=val('voucherType'),date=val('vDate'),ref=val('vRef').trim(),party=val('vParty').trim(),desc=val('vDesc').trim(),cash=val('vCashBank'),itemName=val('vItem').trim(),qty=Number(val('vQty'))||0,rate=Number(val('vRate'))||0;
  if(rate<=0)return alert('Enter a rate or amount greater than zero.');
@@ -389,22 +421,7 @@ function updatePostingHint(){
  }catch(err){alert(err.message||'Could not save voucher.')}
 });
 function goTab(tab){const b=document.querySelector(`nav button[data-tab="${tab}"]`);if(b)b.click()}
-function configureVoucherScreen(type){
- const title=document.getElementById('voucherScreenTitle'),crumb=document.getElementById('voucherCrumb'),sub=document.getElementById('voucherScreenSub');
- const partyLabel=document.querySelector('label[for="vParty"]')||document.querySelector('#vParty').parentElement.querySelector('label');
- const itemField=document.getElementById('vItem').closest('.field'),qtyField=document.getElementById('vQty').closest('.field'),bankField=document.getElementById('cashBankField');
- const purchase=type==='purchase',payment=type==='vendorpay',receipt=type==='customerreceipt';
- if(title)title.textContent=purchase?'Vendor Bills':payment?'Payments':receipt?'Customer Receipts':type==='sale'?'Customer Invoices':'Business Voucher Entry';
- if(crumb)crumb.textContent=purchase?'Vendors / Bills':payment?'Vendors / Payments':receipt?'Customers / Receipts':type==='sale'?'Customers / Invoices':'Vouchers';
- if(sub)sub.textContent=purchase?'Create a vendor bill, select the vendor and item, and record quantity and unit cost.':payment?'Register a vendor payment and choose exactly where the money is paid from, including Bank Alfalah.':receipt?'Register customer money received into Cash or Bank Alfalah.':'Record and post a balanced accounting transaction.';
- if(partyLabel)partyLabel.textContent=receipt||type==='sale'?'Customer Name':'Vendor / Party Name';
- if(itemField)itemField.style.display=(purchase||type==='sale'||type==='stockadjust')?'':'none';
- if(qtyField)qtyField.style.display=(purchase||type==='sale'||type==='stockadjust')?'':'none';
- if(bankField)bankField.style.display=(payment||receipt)?'':'none';
- const rateLabel=document.querySelector('label[for="vRate"]')||document.getElementById('vRate').parentElement.querySelector('label');
- if(rateLabel)rateLabel.textContent=purchase?'Unit Cost (PKR)':type==='sale'?'Invoice Total (PKR)':'Payment / Receipt Amount (PKR)';
-}
-function quickVoucher(type){goTab('vouchers');document.getElementById('voucherType').value=type;document.getElementById('voucherType').dispatchEvent(new Event('change'));clearVoucher();document.getElementById('voucherType').value=type;document.getElementById('voucherType').dispatchEvent(new Event('change'));configureVoucherScreen(type);}
+function quickVoucher(type){goTab('vouchers');document.getElementById('voucherType').value=type;document.getElementById('voucherType').dispatchEvent(new Event('change'));clearVoucher();document.getElementById('voucherType').value=type;document.getElementById('voucherType').dispatchEvent(new Event('change'));}
 function partyBalance(p){let total=0;data.entries.filter(e=>normalizeName(e.party)===normalizeName(p.name)).forEach(e=>e.lines.forEach(l=>{if((p.type==='Vendor'&&l.account==='2000')||(p.type==='Customer'&&l.account==='1100')||(p.type==='Both'&&(l.account==='1100'||l.account==='2000'))){total+=(p.type==='Vendor'?(l.credit-l.debit):(l.debit-l.credit));}}));return total}
 function renderPartyDirectories(){
  const customers=(data.parties||[]).filter(p=>p.type==='Customer'||p.type==='Both');
@@ -439,6 +456,28 @@ function renderBankReconciliation(){
 function toggleCleared(id,checked){if(checked)clearedBankEntries.add(id);else clearedBankEntries.delete(id);renderBankReconciliation()}
 function exportClearedBankCSV(){const arr=bankEntries();let csv='Date,Reference,Description,Debit,Credit,Cleared\n'+arr.map(e=>{const ls=e.lines.filter(l=>l.account==='1010'),d=ls.reduce((s,l)=>s+l.debit,0),c=ls.reduce((s,l)=>s+l.credit,0);return [e.date,e.ref,e.desc,d.toFixed(2),c.toFixed(2),clearedBankEntries.has(e.id)?'Yes':'No'].map(v=>'"'+String(v??'').replace(/"/g,'""')+'"').join(',')}).join('\n');const blob=new Blob([csv],{type:'text/csv'}),url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download='bank-reconciliation.csv';a.click();URL.revokeObjectURL(url)}
 
+
+// Odoo-inspired Purchases and Payments screens, posting through the existing balanced voucher engine.
+function setDateToday(id){const el=document.getElementById(id);if(el&&!el.value)el.value=new Date().toISOString().slice(0,10)}
+function showScreenStatus(id,msg){const el=document.getElementById(id);if(el){el.textContent=msg;el.style.display='block'}}
+function submitThroughVoucher({type,date,ref,party,cash='1010',item='',qty=1,rate,desc}){
+ const fields={voucherType:type,vDate:date,vRef:ref,vParty:party,vCashBank:cash,vItem:item,vQty:String(qty),vRate:String(rate),vDesc:desc||((type==='purchase'?'Purchase from vendor':type==='vendorpay'?'Payment to vendor':'Voucher'))};
+ Object.entries(fields).forEach(([id,value])=>{const el=document.getElementById(id);if(el)el.value=value});
+ document.getElementById('voucherType').dispatchEvent(new Event('change'));
+ document.getElementById('vCashBank').dispatchEvent(new Event('change'));
+ document.getElementById('voucherForm').requestSubmit();
+}
+function renderPurchasePaymentHistory(){
+ const purchases=(data.entries||[]).filter(e=>e.lines.some(l=>l.account==='1200')&&e.lines.some(l=>l.account==='2000'&&Number(l.credit)>0)).slice().sort((a,b)=>b.date.localeCompare(a.date)||b.id-a.id);
+ const payments=(data.entries||[]).filter(e=>e.lines.some(l=>l.account==='2000'&&Number(l.debit)>0)&&e.lines.some(l=>(l.account==='1000'||l.account==='1010')&&Number(l.credit)>0)).slice().sort((a,b)=>b.date.localeCompare(a.date)||b.id-a.id);
+ const render=(arr,id,kind)=>{const el=document.getElementById(id);if(!el)return;el.innerHTML=arr.length?`<div class="tablewrap"><table><thead><tr><th>Date</th><th>Reference</th><th>Vendor</th><th>Description</th><th class="num">Amount (PKR)</th><th>Status</th><th></th></tr></thead><tbody>${arr.map(e=>{const amount=e.lines.reduce((s,l)=>s+Number(l.debit||0),0);return `<tr><td>${esc(e.date)}</td><td>${esc(e.ref||'—')}</td><td>${esc(e.party||'—')}</td><td>${esc(e.desc||'')}</td><td class="num">${money(amount)}</td><td><span class="pill">Posted</span></td><td><button class="secondary" onclick="viewEntry(${e.id})">View Entry</button></td></tr>`}).join('')}</tbody></table></div>`:`<div class="empty">No ${kind} recorded yet.</div>`};
+ render(purchases,'purchaseHistory','vendor bills');render(payments,'paymentHistory','payments');
+}
+document.getElementById('purchaseScreenForm').addEventListener('submit',e=>{e.preventDefault();const date=val('pDate'),party=val('pVendor').trim(),ref=val('pRef').trim(),item=val('pItem').trim(),qty=Number(val('pQty'))||0,rate=Number(val('pRate'))||0,desc=val('pDesc').trim()||'Purchase from vendor';if(!party||!item||qty<=0||rate<=0)return alert('Vendor, item, quantity and unit price are required.');if(!(data.parties||[]).some(p=>normalizeName(p.name)===normalizeName(party)))return alert('Please add this vendor in Party & Stock Setup first.');if(!(data.items||[]).some(i=>normalizeName(i.name)===normalizeName(item)))return alert('Please add this stock item in Party & Stock Setup first.');submitThroughVoucher({type:'purchase',date,ref,party,item,qty,rate,desc});showScreenStatus('purchaseScreenStatus','Submitted to the voucher engine. If saved successfully, it will appear in Purchase History and Journal Entries.');});
+document.getElementById('paymentScreenForm').addEventListener('submit',e=>{e.preventDefault();const date=val('payDate'),party=val('payVendor').trim(),ref=val('payRef').trim(),cash=val('payAccount'),amount=Number(val('payAmount'))||0,desc=val('payDesc').trim()||'Payment to vendor';if(!party||amount<=0)return alert('Vendor and a payment amount greater than zero are required.');if(!(data.parties||[]).some(p=>normalizeName(p.name)===normalizeName(party)&&(p.type==='Vendor'||p.type==='Both')))return alert('Please add/select a Vendor in Party & Stock Setup first.');submitThroughVoucher({type:'vendorpay',date,ref,party,cash,rate:amount,desc});showScreenStatus('paymentScreenStatus','Submitted to the voucher engine. If saved successfully, it will appear in Payment History and Journal Entries.');});
+['pQty','pRate'].forEach(id=>document.getElementById(id).addEventListener('input',()=>{const total=(Number(val('pQty'))||0)*(Number(val('pRate'))||0);document.getElementById('purchaseTotal').textContent='Total: '+money(total)}));
+document.getElementById('payAccount').addEventListener('change',()=>{document.getElementById('paymentPostingPreview').textContent='Posting preview: Vendor Payable Dr · '+(val('payAccount')==='1010'?'Bank Alfalah':'Cash')+' Cr.'});
+
 async function startOnlineApp(){
  const msg=document.getElementById('loginMsg');
  try{
@@ -451,7 +490,7 @@ async function startOnlineApp(){
 }
 async function afterLogin(user){
  cloudUser=user;document.getElementById('cloudUser').textContent=user.email||'Signed in';
- try{await load();cloudReady=true;document.getElementById('loginGate').style.display='none';document.getElementById('vDate').value=new Date().toISOString().slice(0,10);document.getElementById('entryDate').value=new Date().toISOString().slice(0,10);addLine('1000');addLine('5100');refresh();renderReports();clearVoucher();renderPartiesItems();renderBankReconciliation();}
+ try{await load();cloudReady=true;document.getElementById('loginGate').style.display='none';document.getElementById('vDate').value=new Date().toISOString().slice(0,10);document.getElementById('entryDate').value=new Date().toISOString().slice(0,10);addLine('1000');addLine('5100');refresh();renderReports();clearVoucher();renderPartiesItems();renderBankReconciliation();renderPurchasePaymentHistory();}
  catch(e){cloudReady=false;document.getElementById('loginGate').style.display='flex';document.getElementById('loginMsg').textContent='Signed in, but database access failed. Check SQL/RLS setup. '+(e.message||'');setCloudStatus('Database access error',true);}
 }
 startOnlineApp();
