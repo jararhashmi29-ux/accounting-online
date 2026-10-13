@@ -49,12 +49,19 @@ footer{padding:20px;color:var(--muted);text-align:center;font-size:12px}
 <div id="loginGate"><div id="loginCard"><h2>Online Accounting Login</h2><p>Sign in with the account created by your administrator.</p>
 <form id="loginForm"><label>Email</label><input id="loginEmail" type="email" required autocomplete="username" placeholder="you@company.com"><label>Password</label><input id="loginPassword" type="password" required autocomplete="current-password" placeholder="Password"><button type="submit">Sign in</button></form>
 <p id="loginMsg"></p><p style="font-size:12px;color:#667085">Accounts are invitation-only. Contact your administrator if you need access.</p></div></div>
-<header><div><h1>Finance Pro</h1><p>Bookkeeping · Chart of Accounts · Cash & Bank · Ledger Reports</p></div><div><span class="pill">OFFLINE / LOCAL</span></div></header>
+<header><div><h1>Finance Pro</h1><p>Bookkeeping · Chart of Accounts · Cash & Bank · Ledger Reports</p></div><div><span class="pill">ONLINE · PKR</span></div></header>
 <nav>
 <button class="active" data-tab="dashboard">Dashboard</button>
 <button data-tab="accounts">Chart of Accounts</button>
 <button data-tab="entries">Journal Entries</button>
-<button data-tab="vouchers">Business Vouchers</button>
+<button data-tab="vouchers">All Vouchers</button>
+<button data-action="purchase">Purchases</button>
+<button data-action="sale">Sales</button>
+<button data-action="vendorpay">Payments</button>
+<button data-action="customerreceipt">Receipts</button>
+<button data-tab="customers">Customers</button>
+<button data-tab="vendors">Vendors</button>
+<button data-tab="partyLedger">Party Ledger</button>
 <button data-tab="ledger">Ledger</button>
 <button data-tab="reports">Reports</button>
 <button data-tab="backup">Backup & Settings</button>
@@ -110,7 +117,7 @@ footer{padding:20px;color:var(--muted);text-align:center;font-size:12px}
 <section id="vouchers" class="tab">
 <div class="grid2">
 <div class="panel"><h2>Business Voucher Entry</h2>
-<p class="note">These forms create balanced accounting entries automatically. Customer/vendor names are saved locally.</p>
+<p class="note">Record purchases, sales, vendor payments, customer receipts and stock adjustments. Changes sync to the shared company account when cloud status shows synced.</p>
 <div class="field"><label>Voucher Type</label><select id="voucherType"><option value="purchase">Purchase from Vendor</option><option value="sale">Sale to Customer</option><option value="vendorpay">Vendor Payment</option><option value="customerreceipt">Customer Receipt</option><option value="stockadjust">Stock Adjustment</option></select></div>
 <form id="voucherForm">
 <div class="fields">
@@ -142,7 +149,7 @@ footer{padding:20px;color:var(--muted);text-align:center;font-size:12px}
 </div>
 </div>
 <div class="grid2" style="margin-top:14px">
-<div class="panel"><h2>Customers & Vendors</h2><div id="partiesTable"></div></div>
+<div class="panel"><h2>Customers & Vendors</h2><p class="note">Use the Customers and Vendors tabs for a separate directory and ledger access.</p><div id="partiesTable"></div></div>
 <div class="panel"><h2>Stock Inventory</h2><div id="itemsTable"></div></div>
 </div>
 <div class="panel" style="margin-top:14px"><h2>Bank Reconciliation</h2>
@@ -157,6 +164,20 @@ footer{padding:20px;color:var(--muted);text-align:center;font-size:12px}
 <div class="panel"><h2>Account Ledger</h2><div class="fields">
 <div class="field"><label>Select Account</label><select id="ledgerAccount"></select></div><div class="field"><label>From Date</label><input id="ledgerFrom" type="date"></div><div class="field"><label>To Date</label><input id="ledgerTo" type="date"></div>
 </div><div class="actions"><button onclick="renderLedger()">Show Ledger</button><button class="secondary" onclick="print()">Print</button></div><div id="ledgerTable"></div></div>
+</section>
+
+<section id="customers" class="tab">
+<div class="panel"><h2>Customers</h2><p class="note">Customer directory, balance and quick access to each customer's ledger.</p><div id="customersTable"></div></div>
+</section>
+<section id="vendors" class="tab">
+<div class="panel"><h2>Vendors</h2><p class="note">Vendor directory, balance and quick access to each vendor's ledger.</p><div id="vendorsTable"></div></div>
+</section>
+<section id="partyLedger" class="tab">
+<div class="panel"><h2>Customer / Vendor Ledger</h2><div class="fields">
+<div class="field"><label>Party Type</label><select id="partyLedgerType"><option value="Customer">Customer</option><option value="Vendor">Vendor</option><option value="Both">Both</option></select></div>
+<div class="field"><label>Party Name</label><select id="partyLedgerName"><option value="">Select party</option></select></div>
+<div class="field"><label>From Date</label><input type="date" id="partyLedgerFrom"></div><div class="field"><label>To Date</label><input type="date" id="partyLedgerTo"></div>
+</div><div class="actions"><button onclick="renderPartyLedger()">Show Ledger</button><button class="secondary" onclick="print()">Print Ledger</button><button class="secondary" onclick="exportPartyLedgerCSV()">Export CSV</button></div><div id="partyLedgerTable"></div></div>
 </section>
 
 <section id="reports" class="tab">
@@ -174,7 +195,7 @@ footer{padding:20px;color:var(--muted);text-align:center;font-size:12px}
 <div class="panel"><h2>Business Settings</h2><form id="settingsForm"><div class="field"><label>Business Name</label><input id="businessName" placeholder="Your business name"></div><div class="field"><label>Currency</label><select id="currency"><option value="PKR">PKR — Pakistani Rupee</option></select></div><button type="submit">Save Settings</button></form>
 <hr style="border:0;border-top:1px solid var(--line);margin:18px 0"><h3>Reset all data</h3><p class="note">This permanently clears accounts and journal entries from this browser. Export a backup first.</p><button class="danger" onclick="resetAll()">Reset All Data</button></div>
 </div></section>
-</main><footer>Basic Online Accounting · Supabase cloud database · PKR</footer>
+</main><footer>Finance Pro · Online Accounting · Supabase cloud database · PKR</footer>
 <script>
 const STORE='basicOfflineAccounting_v1';
 const defaults=[
@@ -220,7 +241,7 @@ function renderReports(){const from=val('reportFrom'),to=val('reportTo');let arr
 const inc=totalsByType('Income',from,to),exp=totalsByType('Expense',from,to),profit=inc-exp;document.getElementById('profitLoss').innerHTML=`<table><tbody><tr><td>Income</td><td class="num">${money(inc)}</td></tr><tr><td>Expenses</td><td class="num">${money(exp)}</td></tr><tr><th>${profit>=0?'Net Profit':'Net Loss'}</th><th class="num">${money(Math.abs(profit))}</th></tr></tbody></table><p class="note">Based on entries in the selected date range.</p>`;
 const assets=totalsByType('Asset'),liab=totalsByType('Liability'),equity=totalsByType('Equity')+profit;document.getElementById('balanceSheet').innerHTML=`<table><tbody><tr><td>Assets</td><td class="num">${money(assets)}</td></tr><tr><td>Liabilities</td><td class="num">${money(liab)}</td></tr><tr><td>Equity (incl. current profit/loss)</td><td class="num">${money(equity)}</td></tr><tr><th>Liabilities + Equity</th><th class="num">${money(liab+equity)}</th></tr></tbody></table><p class="note">Balance sheet uses all-time asset/liability/equity balances and adds selected-period profit/loss; for formal accounts, close prior-period income and expense accounts into equity.</p>`}
 function refreshDashboard(){document.getElementById('dashCash').textContent=money(balance('1000'));document.getElementById('dashBank').textContent=money(balance('1010'));document.getElementById('dashIncome').textContent=money(totalsByType('Income'));document.getElementById('dashExpense').textContent=money(totalsByType('Expense'));document.getElementById('dashAssets').textContent=money(totalsByType('Asset'));document.getElementById('dashLiabilities').textContent=money(totalsByType('Liability'));const arr=data.entries.slice().sort((a,b)=>b.date.localeCompare(a.date)||b.id-a.id).slice(0,6);document.getElementById('recentEntries').innerHTML=arr.length?`<div class="tablewrap"><table><thead><tr><th>Date</th><th>Reference</th><th>Description</th><th class="num">Amount</th></tr></thead><tbody>${arr.map(e=>`<tr><td>${esc(e.date)}</td><td>${esc(e.ref)}</td><td>${esc(e.desc)}</td><td class="num">${money(e.lines.reduce((s,l)=>s+l.debit,0))}</td></tr>`).join('')}</tbody></table></div>`:'<div class="empty">No entries yet. Start by adding a journal entry.</div>'}
-function refresh(){renderAccounts();renderEntries();refreshDashboard();renderPartiesItems();document.getElementById('ledgerAccount').innerHTML=accountOptions(val('ledgerAccount'));document.getElementById('businessName').value=data.settings.businessName||'';document.getElementById('currency').value=data.settings.currency||'PKR';if(document.getElementById('ledgerTable').innerHTML)renderLedger()}
+function refresh(){renderAccounts();renderEntries();refreshDashboard();renderPartiesItems();renderPartyDirectories();document.getElementById('ledgerAccount').innerHTML=accountOptions(val('ledgerAccount'));document.getElementById('businessName').value=data.settings.businessName||'';document.getElementById('currency').value=data.settings.currency||'PKR';if(document.getElementById('ledgerTable').innerHTML)renderLedger()}
 function quickEntry(type){document.querySelector('[data-tab="entries"]').click();clearEntry();if(type==='expense'){document.getElementById('entryDesc').value='Expense paid';document.querySelectorAll('#entryLines tr')[0].querySelector('.lineAccount').value='5100';document.querySelectorAll('#entryLines tr')[1].querySelector('.lineAccount').value='1000'}else if(type==='income'){document.getElementById('entryDesc').value='Income received';document.querySelectorAll('#entryLines tr')[0].querySelector('.lineAccount').value='1000';document.querySelectorAll('#entryLines tr')[1].querySelector('.lineAccount').value='4000'}else{document.getElementById('entryDesc').value='Cash deposited into bank';document.querySelectorAll('#entryLines tr')[0].querySelector('.lineAccount').value='1010';document.querySelectorAll('#entryLines tr')[1].querySelector('.lineAccount').value='1000'}}
 document.getElementById('settingsForm').addEventListener('submit',e=>{e.preventDefault();data.settings.businessName=val('businessName').trim();data.settings.currency=val('currency');save();refresh();alert('Settings saved.')});
 function exportBackup(){const blob=new Blob([JSON.stringify(data,null,2)],{type:'application/json'}),url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download='accounting-backup-'+new Date().toISOString().slice(0,10)+'.json';a.click();URL.revokeObjectURL(url)}
@@ -248,7 +269,7 @@ function renderPartiesItems(){
 document.getElementById('partyForm').addEventListener('submit',e=>{
  e.preventDefault();const name=val('partyName').trim(),type=val('partyType');
  if(data.parties.some(p=>normalizeName(p.name)===normalizeName(name)))return alert('This party already exists.');
- data.parties.push({name,type});save();e.target.reset();renderPartiesItems();alert('Party saved.');
+ data.parties.push({name,type});save();e.target.reset();renderPartiesItems();renderPartyDirectories();alert('Party saved.');
 });
 document.getElementById('itemForm').addEventListener('submit',e=>{
  e.preventDefault();const name=val('itemName').trim();if(data.items.some(i=>normalizeName(i.name)===normalizeName(name)))return alert('This item already exists.');
@@ -309,6 +330,28 @@ document.getElementById('voucherForm').addEventListener('submit',e=>{
   const st=document.getElementById('voucherStatus');st.textContent='Voucher saved and accounting entry posted.';st.style.display='block';clearVoucher();
  }catch(err){alert(err.message||'Could not save voucher.')}
 });
+function goTab(tab){const b=document.querySelector(`nav button[data-tab="${tab}"]`);if(b)b.click()}
+function quickVoucher(type){goTab('vouchers');document.getElementById('voucherType').value=type;document.getElementById('voucherType').dispatchEvent(new Event('change'));clearVoucher();document.getElementById('voucherType').value=type;document.getElementById('voucherType').dispatchEvent(new Event('change'));}
+function partyBalance(p){let total=0;data.entries.filter(e=>normalizeName(e.party)===normalizeName(p.name)).forEach(e=>e.lines.forEach(l=>{if((p.type==='Vendor'&&l.account==='2000')||(p.type==='Customer'&&l.account==='1100')||(p.type==='Both'&&(l.account==='1100'||l.account==='2000'))){total+=(p.type==='Vendor'?(l.credit-l.debit):(l.debit-l.credit));}}));return total}
+function renderPartyDirectories(){
+ const customers=(data.parties||[]).filter(p=>p.type==='Customer'||p.type==='Both');
+ const vendors=(data.parties||[]).filter(p=>p.type==='Vendor'||p.type==='Both');
+ const render=(arr,id,type)=>{const el=document.getElementById(id);if(!el)return;el.innerHTML=arr.length?`<div class="tablewrap"><table><thead><tr><th>Party Name</th><th>Type</th><th class="num">Balance (PKR)</th><th>Action</th></tr></thead><tbody>${arr.map(p=>`<tr><td>${esc(p.name)}</td><td>${esc(p.type)}</td><td class="num">${money(partyBalance(p))}</td><td><button onclick="openPartyLedger('${esc(p.name)}','${type}')">View Ledger</button></td></tr>`).join('')}</tbody></table></div>`:`<div class="empty">No ${type.toLowerCase()}s added yet. Add them from All Vouchers → Party & Stock Setup.</div>`};
+ render(customers,'customersTable','Customer');render(vendors,'vendorsTable','Vendor');
+ const sel=document.getElementById('partyLedgerName'),old=sel.value,typ=val('partyLedgerType');const list=(data.parties||[]).filter(p=>typ==='Both'||p.type===typ||p.type==='Both');sel.innerHTML='<option value="">Select party</option>'+list.map(p=>`<option value="${esc(p.name)}">${esc(p.name)}</option>`).join('');if(list.some(p=>p.name===old))sel.value=old;
+}
+function openPartyLedger(name,type){goTab('partyLedger');document.getElementById('partyLedgerType').value=type;renderPartyDirectories();document.getElementById('partyLedgerName').value=name;renderPartyLedger();}
+function renderPartyLedger(){
+ const name=val('partyLedgerName'),from=val('partyLedgerFrom'),to=val('partyLedgerTo'),el=document.getElementById('partyLedgerTable');
+ if(!name){el.innerHTML='<div class="empty">Select a customer or vendor first.</div>';return;}
+ const entries=data.entries.filter(e=>normalizeName(e.party)===normalizeName(name)&&(!from||e.date>=from)&&(!to||e.date<=to)).slice().sort((a,b)=>a.date.localeCompare(b.date)||a.id-b.id);
+ let run=0,rows='';const partyType=val('partyLedgerType');
+ entries.forEach(e=>{let debit=0,credit=0;e.lines.forEach(l=>{if(l.account==='1100'||l.account==='2000'){debit+=Number(l.debit)||0;credit+=Number(l.credit)||0;}});if(!debit&&!credit){const amt=e.lines.reduce((sum,l)=>sum+Number(l.debit||0),0);if(/purchase/i.test(e.desc))credit=amt;else if(/sale/i.test(e.desc))debit=amt;else return;}run+=(partyType==='Vendor'?credit-debit:debit-credit);rows+=`<tr><td>${esc(e.date)}</td><td>${esc(e.ref||'')}</td><td>${esc(e.desc||'')}</td><td class="num">${debit.toFixed(2)}</td><td class="num">${credit.toFixed(2)}</td><td class="num">${money(run)}</td><td><button class="secondary" onclick="viewEntry(${e.id})">View</button></td></tr>`;});
+ const opening=0;el.innerHTML=`<h3>${esc(name)} — Party Ledger</h3><p>Period: ${esc(from||'Beginning')} to ${esc(to||'Today')} · Opening balance shown as PKR 0.00 where no opening balance transaction is recorded.</p><div class="cards"><div class="card"><div class="label">Total Debit</div><div class="num">${money(entries.reduce((s,e)=>s+e.lines.filter(l=>l.account==='1100'||l.account==='2000').reduce((x,l)=>x+(Number(l.debit)||0),0),0))}</div></div><div class="card"><div class="label">Total Credit</div><div class="num">${money(entries.reduce((s,e)=>s+e.lines.filter(l=>l.account==='1100'||l.account==='2000').reduce((x,l)=>x+(Number(l.credit)||0),0),0))}</div></div><div class="card"><div class="label">${partyType==='Vendor'?'Closing Payable (Cr − Dr)':'Closing Receivable (Dr − Cr)'}</div><div class="num">${money(run)}</div></div></div><div class="tablewrap"><table><thead><tr><th>Date</th><th>Voucher No.</th><th>Description</th><th class="num">Debit</th><th class="num">Credit</th><th class="num">Running Balance</th><th>Details</th></tr></thead><tbody>${rows||'<tr><td colspan="7" class="empty">No transactions for this party in the selected period.</td></tr>'}</tbody></table></div>`;
+}
+function exportPartyLedgerCSV(){const name=val('partyLedgerName');if(!name)return alert('Select a party first.');const entries=data.entries.filter(e=>normalizeName(e.party)===normalizeName(name)&&(!val('partyLedgerFrom')||e.date>=val('partyLedgerFrom'))&&(!val('partyLedgerTo')||e.date<=val('partyLedgerTo')));const lines=[['Date','Voucher No','Party','Description','Debit','Credit'],...entries.map(e=>[e.date,e.ref||'',name,e.desc||'',e.lines.filter(l=>l.account==='1100'||l.account==='2000').reduce((s,l)=>s+(Number(l.debit)||0),0).toFixed(2),e.lines.filter(l=>l.account==='1100'||l.account==='2000').reduce((s,l)=>s+(Number(l.credit)||0),0).toFixed(2)])];const csv=lines.map(r=>r.map(v=>'"'+String(v).replace(/"/g,'""')+'"').join(',')).join('\r\n');const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv'}));a.download=name.replace(/[^a-z0-9_-]/gi,'_')+'-ledger.csv';a.click();URL.revokeObjectURL(a.href)}
+document.querySelectorAll('nav button[data-action]').forEach(b=>b.addEventListener('click',()=>{document.querySelectorAll('nav button').forEach(x=>x.classList.toggle('active',x===b));document.querySelectorAll('.tab').forEach(x=>x.classList.toggle('active',x.id==='vouchers'));quickVoucher(b.dataset.action)}));
+document.getElementById('partyLedgerType').addEventListener('change',renderPartyDirectories);
 function bankEntries(){return data.entries.filter(e=>e.lines.some(l=>l.account==='1010'))}
 function renderBankReconciliation(){
  const arr=bankEntries().slice().sort((a,b)=>a.date.localeCompare(b.date)||a.id-b.id);
