@@ -69,6 +69,15 @@ th,td{padding:10px 12px}
 .pagebar h2{font-size:23px;margin:3px 0 4px;color:#202a36}.crumb{font-size:10px;font-weight:800;letter-spacing:1.2px;color:#8a7184}.pagebar .note{margin:0}
 #purchaseScreen .panel,#paymentScreen .panel,#banking .panel{border-radius:4px;box-shadow:0 1px 2px #00000008}
 #purchaseScreen .pill,#paymentScreen .pill{background:#f3edf2;color:#714b67;font-weight:700;letter-spacing:.4px}
+
+.pr-odoo-grid{display:grid;grid-template-columns:minmax(0,2fr) minmax(230px,1fr);gap:18px;align-items:stretch}
+.pr-fields{align-content:start}
+.pr-direction-panel{border:1px solid var(--line);border-radius:10px;padding:16px;background:var(--panel,#fff)}
+.pr-direction-toggle{display:flex;gap:8px;margin-top:8px}
+.pr-direction{flex:1;padding:12px 10px;border:1px solid var(--line);border-radius:7px;background:var(--bg,#f7f7f7);color:var(--text);font-weight:700}
+.pr-direction.active{background:#176b4d;color:#fff;border-color:#176b4d}
+#prPaidBtn.active{background:#a33b3b;border-color:#a33b3b}
+@media(max-width:760px){.pr-odoo-grid{grid-template-columns:1fr}}
 </style>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="config.js"></script>
@@ -95,6 +104,7 @@ th,td{padding:10px 12px}
 <button data-tab="vouchers">All Vouchers</button>
 <button data-tab="purchaseScreen">Purchases</button>
 <button data-tab="paymentScreen">Payments</button>
+<button data-tab="paymentReceipt">Payment / Receipt</button>
 <button data-action="sale">Sales</button>
 <button data-action="customerreceipt">Receipts</button>
 <button data-tab="banking">Banking & Reconciliation</button>
@@ -143,6 +153,33 @@ th,td{padding:10px 12px}
     <div class="note" id="paymentPostingPreview">Posting preview: Vendor Payable Dr · Bank Alfalah Cr.</div><div class="actions"><button type="submit">Register Payment</button><button class="secondary" type="reset">Clear</button></div><div class="status" id="paymentScreenStatus"></div></form>
   </div>
   <div class="panel" style="margin-top:14px"><h2>Payment History</h2><div id="paymentHistory"></div></div>
+</section>
+<section id="paymentReceipt" class="tab">
+  <div class="pagebar"><div><div class="crumb">ACCOUNTING / PAYMENT & RECEIPT</div><h2>Payment / Receipt Voucher</h2><p class="note">Enter any payment or receipt by selecting the account to Debit and the account to Credit. Both sides post together as a balanced journal entry.</p></div><button type="button" class="secondary" onclick="goTab('entries')">View Journal Entries</button></div>
+  <div class="panel">
+    <form id="paymentReceiptForm">
+      <div class="pr-odoo-grid">
+        <div class="fields pr-fields">
+          <div class="field"><label>Date</label><input id="prDate" type="date" required></div>
+          <div class="field"><label>Voucher / Reference No.</label><input id="prRef" placeholder="e.g. RCPT-001 / PAY-001"></div>
+          <div class="field"><label>Contact / Name</label><input id="prParty" list="prCounterpartList" required placeholder="Select vendor, customer, POS or account"><datalist id="prCounterpartList"></datalist></div>
+          <div class="field"><label>Amount (PKR)</label><input id="prAmount" type="number" min="0.01" step="0.01" required placeholder="0.00"></div>
+        </div>
+        <div class="pr-direction-panel">
+          <label>Payment Type</label>
+          <div class="pr-direction-toggle"><button type="button" id="prReceiveBtn" class="pr-direction active" onclick="setPaymentReceiptDirection('receive')">Receive</button><button type="button" id="prPaidBtn" class="pr-direction" onclick="setPaymentReceiptDirection('paid')">Paid</button></div>
+          <div class="field" style="margin-top:18px"><label>Journal</label><select id="prJournal"><option value="1010">Bank Alfalah</option><option value="1000">Cash</option></select></div>
+          <div class="note" id="prDirectionHint">Money coming in · Debit Bank/Cash</div>
+        </div>
+      </div>
+      <div class="field" style="margin-top:14px"><label>Description / Narration</label><input id="prDesc" required placeholder="Payment or receipt details"></div>
+      <div class="field" style="margin-top:10px"><label>Counterpart Account</label><select id="prCounterpartAccount" required></select><small class="note">Vendor/customer account ya POS branch account select karein.</small></div>
+      <div class="note" id="prPreview" style="margin-top:12px">Preview: Debit Bank Alfalah · Credit counterpart account.</div>
+      <div class="actions"><button type="submit">Save Payment / Receipt</button><button type="button" class="secondary" onclick="clearPaymentReceiptForm()">Clear Form</button></div>
+      <div class="status" id="prStatus"></div>
+    </form>
+  </div>
+  <div class="panel" style="margin-top:14px"><h3>Example</h3><p class="note">Agar Bank Alfalah mein POS JT ki Rs. 50,000 credit aayi aur aap POS JT ko credit karna chahte hain: Debit = Bank Alfalah, Credit = POS JT, Amount = 50,000.</p></div>
 </section>
 <section id="banking" class="tab">
   <div class="pagebar"><div><div class="crumb">ACCOUNTING / BANKING</div><h2>Bank Reconciliation</h2><p class="note">Compare the Bank Alfalah book balance with your statement and mark transactions cleared.</p></div><button class="secondary" onclick="exportClearedBankCSV()">Export CSV</button></div>
@@ -343,7 +380,7 @@ function renderReports(){const from=val('reportFrom'),to=val('reportTo');let arr
 const inc=totalsByType('Income',from,to),exp=totalsByType('Expense',from,to),profit=inc-exp;document.getElementById('profitLoss').innerHTML=`<table><tbody><tr><td>Income</td><td class="num">${money(inc)}</td></tr><tr><td>Expenses</td><td class="num">${money(exp)}</td></tr><tr><th>${profit>=0?'Net Profit':'Net Loss'}</th><th class="num">${money(Math.abs(profit))}</th></tr></tbody></table><p class="note">Based on entries in the selected date range.</p>`;
 const assets=totalsByType('Asset'),liab=totalsByType('Liability'),equity=totalsByType('Equity')+profit;document.getElementById('balanceSheet').innerHTML=`<table><tbody><tr><td>Assets</td><td class="num">${money(assets)}</td></tr><tr><td>Liabilities</td><td class="num">${money(liab)}</td></tr><tr><td>Equity (incl. current profit/loss)</td><td class="num">${money(equity)}</td></tr><tr><th>Liabilities + Equity</th><th class="num">${money(liab+equity)}</th></tr></tbody></table><p class="note">Balance sheet uses all-time asset/liability/equity balances and adds selected-period profit/loss; for formal accounts, close prior-period income and expense accounts into equity.</p>`}
 function refreshDashboard(){document.getElementById('dashCash').textContent=money(balance('1000'));document.getElementById('dashBank').textContent=money(balance('1010'));document.getElementById('dashIncome').textContent=money(totalsByType('Income'));document.getElementById('dashExpense').textContent=money(totalsByType('Expense'));document.getElementById('dashAssets').textContent=money(totalsByType('Asset'));document.getElementById('dashLiabilities').textContent=money(totalsByType('Liability'));const payEl=document.getElementById('dashPayables');if(payEl)payEl.textContent=money(data.parties.filter(p=>p.type==='Vendor'||p.type==='Both').reduce((s,p)=>s+vendorPayable(p),0));const arr=data.entries.slice().sort((a,b)=>b.date.localeCompare(a.date)||b.id-a.id).slice(0,6);document.getElementById('recentEntries').innerHTML=arr.length?`<div class="tablewrap"><table><thead><tr><th>Date</th><th>Reference</th><th>Description</th><th class="num">Amount</th></tr></thead><tbody>${arr.map(e=>`<tr><td>${esc(e.date)}</td><td>${esc(e.ref)}</td><td>${esc(e.desc)}</td><td class="num">${money(e.lines.reduce((s,l)=>s+l.debit,0))}</td></tr>`).join('')}</tbody></table></div>`:'<div class="empty">No entries yet. Start by adding a journal entry.</div>'}
-function refresh(){renderAccounts();renderEntries();refreshDashboard();renderPartiesItems();renderPartyDirectories();renderAccountSearchLists();document.getElementById('businessName').value=data.settings.businessName||'';document.getElementById('currency').value=data.settings.currency||'PKR';if(document.getElementById('ledgerTable').innerHTML)renderLedger();if(typeof renderPurchasePaymentHistory==='function')renderPurchasePaymentHistory()}
+function refresh(){renderAccounts();renderEntries();refreshDashboard();renderPartiesItems();renderPartyDirectories();renderAccountSearchLists();if(typeof populatePaymentReceiptAccounts==='function')populatePaymentReceiptAccounts();document.getElementById('businessName').value=data.settings.businessName||'';document.getElementById('currency').value=data.settings.currency||'PKR';if(document.getElementById('ledgerTable').innerHTML)renderLedger();if(typeof renderPurchasePaymentHistory==='function')renderPurchasePaymentHistory()}
 function quickEntry(type){document.querySelector('[data-tab="entries"]').click();clearEntry();if(type==='expense'){document.getElementById('entryDesc').value='Expense paid';document.querySelectorAll('#entryLines tr')[0].querySelector('.lineAccount').value='5100';document.querySelectorAll('#entryLines tr')[1].querySelector('.lineAccount').value='1000'}else if(type==='income'){document.getElementById('entryDesc').value='Income received';document.querySelectorAll('#entryLines tr')[0].querySelector('.lineAccount').value='1000';document.querySelectorAll('#entryLines tr')[1].querySelector('.lineAccount').value='4000'}else{document.getElementById('entryDesc').value='Cash deposited into bank';document.querySelectorAll('#entryLines tr')[0].querySelector('.lineAccount').value='1010';document.querySelectorAll('#entryLines tr')[1].querySelector('.lineAccount').value='1000'}}
 document.getElementById('settingsForm').addEventListener('submit',e=>{e.preventDefault();data.settings.businessName=val('businessName').trim();data.settings.currency=val('currency');save();refresh();alert('Settings saved.')});
 function exportBackup(){const blob=new Blob([JSON.stringify(data,null,2)],{type:'application/json'}),url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download='accounting-backup-'+new Date().toISOString().slice(0,10)+'.json';a.click();URL.revokeObjectURL(url)}
@@ -556,6 +593,51 @@ document.getElementById('paymentScreenForm').addEventListener('submit',e=>{e.pre
 ['pQty','pRate'].forEach(id=>document.getElementById(id).addEventListener('input',()=>{const total=(Number(val('pQty'))||0)*(Number(val('pRate'))||0);document.getElementById('purchaseTotal').textContent='Total: '+money(total)}));
 document.getElementById('payAccount').addEventListener('change',()=>{document.getElementById('paymentPostingPreview').textContent='Posting preview: Vendor Payable Dr · '+(val('payAccount')==='1010'?'Bank Alfalah':'Cash')+' Cr.'});
 
+let paymentReceiptDirection='receive';
+function setPaymentReceiptDirection(direction){
+ paymentReceiptDirection=direction==='paid'?'paid':'receive';
+ document.getElementById('prReceiveBtn').classList.toggle('active',paymentReceiptDirection==='receive');
+ document.getElementById('prPaidBtn').classList.toggle('active',paymentReceiptDirection==='paid');
+ document.getElementById('prDirectionHint').textContent=paymentReceiptDirection==='receive'?'Money coming in · Debit Bank/Cash':'Money going out · Credit Bank/Cash';
+ updatePaymentReceiptPreview();
+}
+function populatePaymentReceiptAccounts(){
+ const counterpart=document.getElementById('prCounterpartAccount');if(!counterpart)return;
+ const old=counterpart.value;
+ const accounts=data.accounts.slice().sort((a,b)=>a.code.localeCompare(b.code,undefined,{numeric:true}));
+ counterpart.innerHTML='<option value="">Select counterpart account…</option>'+accounts.filter(a=>a.code!=='1000'&&a.code!=='1010').map(a=>`<option value="${esc(a.code)}">${esc(a.code)} — ${esc(a.name)} (${esc(a.type)})</option>`).join('');
+ if(accounts.some(a=>a.code===old))counterpart.value=old;
+ else if(accounts.some(a=>a.code==='2000'))counterpart.value='2000';
+ const dl=document.getElementById('prCounterpartList');if(dl){const names=[...(data.parties||[]).map(p=>p.name),...accounts.map(a=>a.name)];dl.innerHTML=[...new Set(names)].map(n=>`<option value="${esc(n)}"></option>`).join('');}
+ updatePaymentReceiptPreview();
+}
+function resolvePaymentReceiptCounterpart(){
+ const name=val('prParty').trim();if(!name)return;
+ const party=(data.parties||[]).find(p=>normalizeName(p.name)===normalizeName(name));
+ const account=data.accounts.find(a=>normalizeName(a.name)===normalizeName(name)||a.code===name);
+ let code='';
+ if(account)code=account.code;
+ else if(party)code=party.type==='Vendor'?'2000':party.type==='Customer'?'1100':(paymentReceiptDirection==='paid'?'2000':'1100');
+ if(code&&data.accounts.some(a=>a.code===code))document.getElementById('prCounterpartAccount').value=code;
+ updatePaymentReceiptPreview();
+}
+function updatePaymentReceiptPreview(){
+ const cash=acct(val('prJournal')),other=acct(val('prCounterpartAccount')),el=document.getElementById('prPreview');
+ if(!el)return;
+ const first=paymentReceiptDirection==='receive'?cash:other,second=paymentReceiptDirection==='receive'?other:cash;
+ el.textContent='Preview: '+(first?first.name:'Bank/Cash')+' Dr · '+(second?second.name:'Counterpart account')+' Cr.';
+}
+function clearPaymentReceiptForm(){const f=document.getElementById('paymentReceiptForm');if(f)f.reset();const dt=document.getElementById('prDate');if(dt)dt.value=new Date().toISOString().slice(0,10);setPaymentReceiptDirection('receive');populatePaymentReceiptAccounts();const st=document.getElementById('prStatus');if(st)st.textContent='';}
+document.getElementById('paymentReceiptForm').addEventListener('submit',e=>{
+ e.preventDefault();const date=val('prDate'),ref=val('prRef').trim(),party=val('prParty').trim(),amount=Math.round((Number(val('prAmount'))||0)*100)/100,cash=val('prJournal'),counterpart=val('prCounterpartAccount'),desc=val('prDesc').trim();
+ if(!date)return alert('Date select karein.');if(!party)return alert('Contact / Name select karein.');if(amount<=0)return alert('Valid amount enter karein.');if(!cash||!counterpart)return alert('Journal aur counterpart account select karein.');if(cash===counterpart)return alert('Bank/Cash aur counterpart accounts alag hone chahiye.');if(!acct(cash)||!acct(counterpart))return alert('Selected account nahi mila.');
+ const debit=paymentReceiptDirection==='receive'?cash:counterpart,credit=paymentReceiptDirection==='receive'?counterpart:cash;
+ const id=data.nextId++;data.entries.push({id,date,ref:ref||(paymentReceiptDirection==='receive'?'RCPT-':'PAY-')+id,party,desc,lines:[{account:debit,desc:desc+' (Debit)',debit:amount,credit:0},{account:credit,desc:desc+' (Credit)',debit:0,credit:amount}]});save();refresh();renderBankReconciliation();renderPurchasePaymentHistory();document.getElementById('prStatus').textContent=(paymentReceiptDirection==='receive'?'Receipt':'Payment')+' saved successfully. '+money(amount)+' posted.';
+});
+document.getElementById('prParty').addEventListener('change',resolvePaymentReceiptCounterpart);
+document.getElementById('prJournal').addEventListener('change',updatePaymentReceiptPreview);
+document.getElementById('prCounterpartAccount').addEventListener('change',updatePaymentReceiptPreview);
+
 async function startOnlineApp(){
  const msg=document.getElementById('loginMsg');
  try{
@@ -568,7 +650,7 @@ async function startOnlineApp(){
 }
 async function afterLogin(user){
  cloudUser=user;document.getElementById('cloudUser').textContent=user.email||'Signed in';
- try{await load();cloudReady=true;document.getElementById('loginGate').style.display='none';document.getElementById('vDate').value=new Date().toISOString().slice(0,10);document.getElementById('entryDate').value=new Date().toISOString().slice(0,10);addLine('1000');addLine('5100');refresh();renderReports();clearVoucher();renderPartiesItems();renderBankReconciliation();renderPurchasePaymentHistory();}
+ try{await load();cloudReady=true;document.getElementById('loginGate').style.display='none';document.getElementById('vDate').value=new Date().toISOString().slice(0,10);document.getElementById('prDate').value=new Date().toISOString().slice(0,10);document.getElementById('entryDate').value=new Date().toISOString().slice(0,10);addLine('1000');addLine('5100');refresh();renderReports();clearVoucher();renderPartiesItems();renderBankReconciliation();renderPurchasePaymentHistory();}
  catch(e){cloudReady=false;document.getElementById('loginGate').style.display='flex';document.getElementById('loginMsg').textContent='Signed in, but database access failed. Check SQL/RLS setup. '+(e.message||'');setCloudStatus('Database access error',true);}
 }
 startOnlineApp();
