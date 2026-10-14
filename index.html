@@ -163,7 +163,8 @@ th,td{padding:10px 12px}
           <div class="field"><label>Date</label><input id="prDate" type="date" required></div>
           <div class="field"><label>Voucher / Reference No.</label><input id="prRef" placeholder="e.g. RCPT-001 / PAY-001"></div>
           <div class="field"><label>Contact / Name</label><input id="prParty" list="prCounterpartList" required placeholder="Select vendor, customer, POS or account"><datalist id="prCounterpartList"></datalist></div>
-          <div class="field"><label>Amount (PKR)</label><input id="prAmount" type="number" min="0.01" step="0.01" required placeholder="0.00"></div>
+          <div class="field"><label>Debit Amount (PKR)</label><input id="prDebitAmount" type="number" min="0" step="0.01" placeholder="0.00"></div>
+          <div class="field"><label>Credit Amount (PKR)</label><input id="prCreditAmount" type="number" min="0" step="0.01" placeholder="0.00"></div><input id="prAmount" type="hidden" value="">
         </div>
         <div class="pr-direction-panel">
           <label>Payment Type</label>
@@ -174,7 +175,7 @@ th,td{padding:10px 12px}
       </div>
       <div class="field" style="margin-top:14px"><label>Description / Narration</label><input id="prDesc" required placeholder="Payment or receipt details"></div>
       <div class="field" style="margin-top:10px"><label>Counterpart Account</label><select id="prCounterpartAccount" required></select><small class="note">Vendor/customer account ya POS branch account select karein.</small></div>
-      <div class="note" id="prPreview" style="margin-top:12px">Preview: Debit Bank Alfalah · Credit counterpart account.</div>
+      <div class="note" id="prPreview" style="margin-top:12px">Preview: Debit Bank Alfalah · Credit counterpart account. Debit ya Credit mein amount likhein; doosri side automatically same ho jayegi.</div>
       <div class="actions"><button type="submit">Save Payment / Receipt</button><button type="button" class="secondary" onclick="clearPaymentReceiptForm()">Clear Form</button></div>
       <div class="status" id="prStatus"></div>
     </form>
@@ -627,7 +628,14 @@ function updatePaymentReceiptPreview(){
  const first=paymentReceiptDirection==='receive'?cash:other,second=paymentReceiptDirection==='receive'?other:cash;
  el.textContent='Preview: '+(first?first.name:'Bank/Cash')+' Dr · '+(second?second.name:'Counterpart account')+' Cr.';
 }
-function clearPaymentReceiptForm(){const f=document.getElementById('paymentReceiptForm');if(f)f.reset();const dt=document.getElementById('prDate');if(dt)dt.value=new Date().toISOString().slice(0,10);setPaymentReceiptDirection('receive');populatePaymentReceiptAccounts();const st=document.getElementById('prStatus');if(st)st.textContent='';}
+function syncPaymentReceiptAmount(side){
+ const debit=document.getElementById('prDebitAmount'),credit=document.getElementById('prCreditAmount'),hidden=document.getElementById('prAmount');if(!debit||!credit||!hidden)return;
+ const source=side==='debit'?debit:credit,target=side==='debit'?credit:debit;
+ target.value=source.value;hidden.value=source.value;
+}
+document.getElementById('prDebitAmount').addEventListener('input',()=>syncPaymentReceiptAmount('debit'));
+document.getElementById('prCreditAmount').addEventListener('input',()=>syncPaymentReceiptAmount('credit'));
+function clearPaymentReceiptForm(){const f=document.getElementById('paymentReceiptForm');if(f)f.reset();const dt=document.getElementById('prDate');if(dt)dt.value=new Date().toISOString().slice(0,10);document.getElementById('prAmount').value='';setPaymentReceiptDirection('receive');populatePaymentReceiptAccounts();const st=document.getElementById('prStatus');if(st)st.textContent='';}
 document.getElementById('paymentReceiptForm').addEventListener('submit',e=>{
  e.preventDefault();const date=val('prDate'),ref=val('prRef').trim(),party=val('prParty').trim(),amount=Math.round((Number(val('prAmount'))||0)*100)/100,cash=val('prJournal'),counterpart=val('prCounterpartAccount'),desc=val('prDesc').trim();
  if(!date)return alert('Date select karein.');if(!party)return alert('Contact / Name select karein.');if(amount<=0)return alert('Valid amount enter karein.');if(!cash||!counterpart)return alert('Journal aur counterpart account select karein.');if(cash===counterpart)return alert('Bank/Cash aur counterpart accounts alag hone chahiye.');if(!acct(cash)||!acct(counterpart))return alert('Selected account nahi mila.');
