@@ -428,15 +428,23 @@ function previousISODate(date){const parts=String(date||'').split('-').map(Numbe
 function renderLedger(){
  const code=resolveAccount(val('ledgerAccount')),from=val('ledgerFrom'),to=val('ledgerTo'),a=acct(code);
  if(!a){document.getElementById('ledgerTable').innerHTML='<div class="empty">Choose an account.</div>';return}
- const opening=from?balance(code,previousISODate(from)):0;
+ const isOpeningEntry=e=>{
+  const lines=Array.isArray(e.lines)?e.lines:[];
+  const hasAccount=lines.some(l=>String(l.account)===String(code));
+  const hasOffset=lines.some(l=>String(l.account)==='3100');
+  const text=[e.ref,e.desc,...lines.map(l=>l.desc)].join(' ');
+  return hasAccount&&hasOffset&&/opening\s*balance/i.test(text);
+ };
+ const openingEntries=data.entries.filter(isOpeningEntry);
+ let opening=from?balance(code,previousISODate(from)):openingEntries.reduce((sum,e)=>sum+e.lines.filter(l=>String(l.account)===String(code)).reduce((n,l)=>n+(a.normal==='Credit'?(Number(l.credit)||0)-(Number(l.debit)||0):(Number(l.debit)||0)-(Number(l.credit)||0)),0),0);
  let run=opening;
- const arr=data.entries.filter(e=>(!from||e.date>=from)&&(!to||e.date<=to)&&e.lines.some(l=>String(l.account)===String(code))).slice().sort((x,y)=>x.date.localeCompare(y.date)||x.id-y.id);
+ const arr=data.entries.filter(e=>(!from||e.date>=from)&&(!to||e.date<=to)&&e.lines.some(l=>String(l.account)===String(code))&&!( !from&&isOpeningEntry(e))).slice().sort((x,y)=>x.date.localeCompare(y.date)||x.id-y.id);
  const rows=[];
  arr.forEach(e=>e.lines.filter(l=>String(l.account)===String(code)).forEach(l=>{
    run+=a.normal==='Credit'?(Number(l.credit||0)-Number(l.debit||0)):(Number(l.debit||0)-Number(l.credit||0));
    rows.push(`<tr><td>${esc(e.date)}</td><td>${esc(e.ref)}</td><td>${esc(e.desc)}${l.desc?' — '+esc(l.desc):''}</td><td class="num">${(Number(l.debit)||0).toFixed(2)}</td><td class="num">${(Number(l.credit)||0).toFixed(2)}</td><td class="num">${money(run)}</td><td class="no-print"><button class="secondary" onclick="editEntry(${e.id})">Edit</button> <button class="danger" onclick="deleteEntry(${e.id})">Delete</button></td></tr>`);
  }));
- document.getElementById('ledgerTable').innerHTML=`<h3>${esc(a.code)} — ${esc(a.name)}</h3><p>Opening balance before selected period: <b>${money(opening)}</b></p><div class="tablewrap"><table><thead><tr><th>Date</th><th>Ref</th><th>Description</th><th class="num">Debit</th><th class="num">Credit</th><th class="num">Running Balance</th><th class="no-print">Actions</th></tr></thead><tbody>${rows.join('')||'<tr><td colspan="7" class="empty">No activity for selected period.</td></tr>'}</tbody></table></div><p><b>Closing balance: ${money(run)}</b></p>`;
+ document.getElementById('ledgerTable').innerHTML=`<h3>${esc(a.code)} — ${esc(a.name)}</h3><p><b>Opening Balance:</b> ${money(opening)}</p><div class="tablewrap"><table><thead><tr><th>Date</th><th>Ref</th><th>Description</th><th class="num">Debit</th><th class="num">Credit</th><th class="num">Running Balance</th><th class="no-print">Actions</th></tr></thead><tbody>${rows.join('')||'<tr><td colspan="7" class="empty">No activity for selected period.</td></tr>'}</tbody></table></div><p><b>Closing balance: ${money(run)}</b></p>`;
 }
 function renderReports(){const from=val('reportFrom'),to=val('reportTo');let arr=data.accounts.slice().sort((a,b)=>a.code.localeCompare(b.code,undefined,{numeric:true}));let dr=0,cr=0;const rows=arr.map(a=>{let n=accountNet(a,from,to);let debit=a.normal==='Debit'?n:0,credit=a.normal==='Credit'?n:0;if(debit>=0)dr+=debit;else cr+=-debit;if(credit>=0)cr+=credit;else dr+=-credit;return `<tr><td>${esc(a.code)}</td><td>${esc(a.name)}</td><td>${esc(a.type)}</td><td class="num">${debit>0?debit.toFixed(2):''}</td><td class="num">${credit>0?credit.toFixed(2):''}</td><td class="num">${money(n)}</td></tr>`});document.getElementById('trialBalance').innerHTML=`<div class="tablewrap"><table><thead><tr><th>Code</th><th>Account</th><th>Type</th><th class="num">Debit</th><th class="num">Credit</th><th class="num">Net Balance</th></tr></thead><tbody>${rows.join('')}<tr><th colspan="3">Totals (net-normal)</th><th class="num">${dr.toFixed(2)}</th><th class="num">${cr.toFixed(2)}</th><th></th></tr></tbody></table></div>`;
 const inc=totalsByType('Income',from,to),exp=totalsByType('Expense',from,to),profit=inc-exp;document.getElementById('profitLoss').innerHTML=`<table><tbody><tr><td>Income</td><td class="num">${money(inc)}</td></tr><tr><td>Expenses</td><td class="num">${money(exp)}</td></tr><tr><th>${profit>=0?'Net Profit':'Net Loss'}</th><th class="num">${money(Math.abs(profit))}</th></tr></tbody></table><p class="note">Based on entries in the selected date range.</p>`;
