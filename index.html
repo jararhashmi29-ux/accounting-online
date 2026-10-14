@@ -605,11 +605,16 @@ function setPaymentReceiptDirection(direction){
 function populatePaymentReceiptAccounts(){
  const counterpart=document.getElementById('prCounterpartAccount');if(!counterpart)return;
  const old=counterpart.value;
- const accounts=data.accounts.slice().sort((a,b)=>a.code.localeCompare(b.code,undefined,{numeric:true}));
- counterpart.innerHTML='<option value="">Select counterpart account…</option>'+accounts.filter(a=>a.code!=='1000'&&a.code!=='1010').map(a=>`<option value="${esc(a.code)}">${esc(a.code)} — ${esc(a.name)} (${esc(a.type)})</option>`).join('');
- if(accounts.some(a=>a.code===old))counterpart.value=old;
- else if(accounts.some(a=>a.code==='2000'))counterpart.value='2000';
- const dl=document.getElementById('prCounterpartList');if(dl){const names=[...(data.parties||[]).map(p=>p.name),...accounts.map(a=>a.name)];dl.innerHTML=[...new Set(names)].map(n=>`<option value="${esc(n)}"></option>`).join('');}
+ // Build the picker from the live Chart of Accounts every time the screen refreshes.
+ // Do not hard-code a list of account codes: user-created accounts such as POS JT,
+ // POS BT, POS JR, POS SLR and POS DHA must remain selectable.
+ const accounts=(data.accounts||[]).slice().sort((a,b)=>String(a.code).localeCompare(String(b.code),undefined,{numeric:true}));
+ const journalCode=val('prJournal');
+ counterpart.innerHTML='<option value="">Select counterpart account…</option>'+accounts.filter(a=>String(a.code)!==String(journalCode)).map(a=>`<option value="${esc(a.code)}">${esc(a.code)} — ${esc(a.name)} (${esc(a.type)})</option>`).join('');
+ if(accounts.some(a=>String(a.code)===String(old))&&String(old)!==String(journalCode))counterpart.value=old;
+ else if(accounts.some(a=>String(a.code)==='2000')&&String(journalCode)!=='2000')counterpart.value='2000';
+ const dl=document.getElementById('prCounterpartList');
+ if(dl){const names=[...(data.parties||[]).map(p=>p.name),...accounts.map(a=>a.name)];dl.innerHTML=[...new Set(names.filter(Boolean))].map(n=>`<option value="${esc(n)}"></option>`).join('');}
  updatePaymentReceiptPreview();
 }
 function resolvePaymentReceiptCounterpart(){
@@ -643,7 +648,8 @@ document.getElementById('paymentReceiptForm').addEventListener('submit',e=>{
  const id=data.nextId++;data.entries.push({id,date,ref:ref||(paymentReceiptDirection==='receive'?'RCPT-':'PAY-')+id,party,desc,lines:[{account:debit,desc:desc+' (Debit)',debit:amount,credit:0},{account:credit,desc:desc+' (Credit)',debit:0,credit:amount}]});save();refresh();renderBankReconciliation();renderPurchasePaymentHistory();document.getElementById('prStatus').textContent=(paymentReceiptDirection==='receive'?'Receipt':'Payment')+' saved successfully. '+money(amount)+' posted.';
 });
 document.getElementById('prParty').addEventListener('change',resolvePaymentReceiptCounterpart);
-document.getElementById('prJournal').addEventListener('change',updatePaymentReceiptPreview);
+document.getElementById('prParty').addEventListener('input',()=>{const name=val('prParty').trim();const account=(data.accounts||[]).find(a=>normalizeName(a.name)===normalizeName(name)||String(a.code)===name);if(account){const select=document.getElementById('prCounterpartAccount');if(select&&[...select.options].some(o=>o.value===String(account.code)))select.value=String(account.code);updatePaymentReceiptPreview();}});
+document.getElementById('prJournal').addEventListener('change',()=>{populatePaymentReceiptAccounts();updatePaymentReceiptPreview();});
 document.getElementById('prCounterpartAccount').addEventListener('change',updatePaymentReceiptPreview);
 
 async function startOnlineApp(){
