@@ -304,7 +304,7 @@ th,td{padding:10px 12px}
 <section id="vendors" class="tab">
 <div class="panel"><div class="pagebar"><div><h2>Vendors & Payables</h2><p class="note">Vendor profiles, supplied items, contact details and opening balances.</p></div><button type="button" onclick="openVendorForm()">+ Add Vendor</button></div>
 <div class="fields no-print" style="margin:12px 0 4px"><div class="field"><label>From Date</label><input type="date" id="payablesFrom" onchange="renderPayablesSummary((data.parties||[]).filter(p=>p.type==='Vendor'||p.type==='Both'))"></div><div class="field"><label>To Date</label><input type="date" id="payablesTo" onchange="renderPayablesSummary((data.parties||[]).filter(p=>p.type==='Vendor'||p.type==='Both'))"></div><small class="note">From Date se To Date tak ki vendor activity, payments aur closing payable dekhein. From Date khali ho to shuru se calculate hoga.</small></div>
-<div class="actions no-print" style="margin:4px 0 12px"><button type="button" class="secondary" onclick="printPayablesSummary()">Print All Payables</button></div>
+<div class="actions no-print" style="margin:4px 0 12px"><button type="button" onclick="renderPayablesSummary((data.parties||[]).filter(p=>p.type==='Vendor'||p.type==='Both'))">Show Payables</button><button type="button" class="secondary" onclick="printPayablesSummary()">Print All Payables</button></div>
 <div id="payablesPrintArea"><h2>Vendor Payables Report</h2><p id="payablesPrintDate" class="note"></p><div id="payablesSummary"></div></div><div id="vendorsTable"></div></div>
 </section>
 <section id="partyLedger" class="tab">
