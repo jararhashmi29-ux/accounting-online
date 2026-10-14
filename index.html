@@ -303,7 +303,7 @@ th,td{padding:10px 12px}
 </section>
 <section id="vendors" class="tab">
 <div class="panel"><div class="pagebar"><div><h2>Vendors & Payables</h2><p class="note">Vendor profiles, supplied items, contact details and opening balances.</p></div><button type="button" onclick="openVendorForm()">+ Add Vendor</button></div>
-<div class="fields no-print" style="margin:12px 0 4px"><div class="field"><label>Payables As Of Date</label><input type="date" id="payablesAsOf" onchange="renderPayablesSummary((data.parties||[]).filter(p=>p.type==='Vendor'||p.type==='Both'))"><small class="note">Selected date tak ki outstanding payable balances dikhengi.</small></div></div>
+<div class="fields no-print" style="margin:12px 0 4px"><div class="field"><label>From Date</label><input type="date" id="payablesFrom" onchange="renderPayablesSummary((data.parties||[]).filter(p=>p.type==='Vendor'||p.type==='Both'))"></div><div class="field"><label>To Date</label><input type="date" id="payablesTo" onchange="renderPayablesSummary((data.parties||[]).filter(p=>p.type==='Vendor'||p.type==='Both'))"></div><small class="note">From Date se To Date tak ki vendor activity, payments aur closing payable dekhein. From Date khali ho to shuru se calculate hoga.</small></div>
 <div class="actions no-print" style="margin:4px 0 12px"><button type="button" class="secondary" onclick="printPayablesSummary()">Print All Payables</button></div>
 <div id="payablesPrintArea"><h2>Vendor Payables Report</h2><p id="payablesPrintDate" class="note"></p><div id="payablesSummary"></div></div><div id="vendorsTable"></div></div>
 </section>
@@ -364,7 +364,38 @@ document.getElementById('accountForm').addEventListener('submit',e=>{e.preventDe
 document.getElementById('accountFilter').addEventListener('change',renderAccounts);
 function renderAccountSearchLists(){const dl=document.getElementById('accountList');if(dl){const seen=new Set(),opts=[];data.accounts.slice().sort((a,b)=>a.code.localeCompare(b.code,undefined,{numeric:true})).forEach(a=>{const labels=[a.name,a.code,a.code+' — '+a.name,...a.name.split(/\s+/).filter(w=>w.length>=2)];labels.forEach(label=>{const k=label.toLowerCase();if(!seen.has(k)){seen.add(k);opts.push(`<option value="${esc(label)}" label="${esc(a.code+' — '+a.name+' ('+a.type+')')}"></option>`)}})});dl.innerHTML=opts.join('')}const pl=document.getElementById('partyLedgerList');if(pl)pl.innerHTML=(data.parties||[]).map(p=>`<option value="${esc(p.name)}"></option>`).join('');}
 function vendorPayable(p,upto=null){let net=0;(data.entries||[]).filter(e=>normalizeName(e.party)===normalizeName(p.name)&&(!upto||!e.date||e.date<=upto)).forEach(e=>e.lines.forEach(l=>{if(String(l.account)==='2000')net+=(Number(l.credit)||0)-(Number(l.debit)||0)}));return net;}
-function renderPayablesSummary(vendors){const el=document.getElementById('payablesSummary');if(!el)return;vendors=vendors||((data.parties||[]).filter(p=>p.type==='Vendor'||p.type==='Both'));const upto=document.getElementById('payablesAsOf')?.value||'';const rows=vendors.map(p=>({p,b:vendorPayable(p,upto||null)})).filter(x=>Math.abs(x.b)>.005).sort((a,b)=>b.b-a.b);const total=rows.reduce((s,x)=>s+x.b,0);const dateLabel=upto?new Date(upto+'T00:00:00').toLocaleDateString('en-GB'):'All dates';const printDate=document.getElementById('payablesPrintDate');if(printDate)printDate.textContent='Payables as of: '+dateLabel;el.innerHTML=`<div class="cards" style="margin:12px 0"><div class="card"><div class="label">Total Outstanding Payables</div><div class="num">${money(total)}</div></div><div class="card"><div class="label">Vendors with Balance</div><div class="num">${rows.length}</div></div></div>`+(rows.length?`<div class="tablewrap"><table><thead><tr><th>Sr.</th><th>Vendor</th><th class="num">Outstanding Payable (PKR)</th><th class="no-print"></th></tr></thead><tbody>${rows.map((x,i)=>`<tr><td>${i+1}</td><td>${esc(x.p.name)}</td><td class="num">${money(x.b)}</td><td class="no-print"><button class="secondary" onclick="openPartyLedger('${esc(x.p.name)}','Vendor')">Open Ledger</button></td></tr>`).join('')}<tr><th colspan="2">Total Payables</th><th class="num">${money(total)}</th><th class="no-print"></th></tr></tbody></table></div>`:'<div class="empty">Selected date tak koi outstanding vendor payable nahi hai.</div>');}
+function renderPayablesSummary(vendors){
+ const el=document.getElementById('payablesSummary');if(!el)return;
+ vendors=vendors||((data.parties||[]).filter(p=>p.type==='Vendor'||p.type==='Both'));
+ const from=document.getElementById('payablesFrom')?.value||'';
+ const to=document.getElementById('payablesTo')?.value||'';
+ const printDate=document.getElementById('payablesPrintDate');
+ const fmt=d=>d?new Date(d+'T00:00:00').toLocaleDateString('en-GB'):'Beginning';
+ if(from&&to&&from>to){if(printDate)printDate.textContent='Invalid date range';el.innerHTML='<div class="empty">From Date, To Date se baad ki nahi ho sakti. Dates dobara select karein.</div>';return;}
+ const rows=vendors.map(p=>{
+  let opening=0,periodCredit=0,periodDebit=0;
+  // Calculate independently for this vendor so amounts cannot leak across vendors.
+  (data.entries||[]).filter(e=>normalizeName(e.party)===normalizeName(p.name)).forEach(e=>{
+   const d=String(e.date||'');
+   e.lines.forEach(l=>{
+    if(String(l.account)!=='2000')return;
+    const cr=Number(l.credit)||0,dr=Number(l.debit)||0;
+    if(from && (!d || d<from)) opening+=cr-dr;
+    else if((!from || !d || d>=from) && (!to || !d || d<=to)){periodCredit+=cr;periodDebit+=dr;}
+   });
+  });
+  const closing=opening+periodCredit-periodDebit;
+  return {p,opening,periodCredit,periodDebit,closing};
+ }).filter(x=>Math.abs(x.opening)>.005||Math.abs(x.periodCredit)>.005||Math.abs(x.periodDebit)>.005||Math.abs(x.closing)>.005)
+ .sort((a,b)=>b.closing-a.closing);
+ const total=rows.reduce((s,x)=>s+x.closing,0);
+ const totalOpening=rows.reduce((s,x)=>s+x.opening,0);
+ const totalCredit=rows.reduce((s,x)=>s+x.periodCredit,0);
+ const totalDebit=rows.reduce((s,x)=>s+x.periodDebit,0);
+ if(printDate)printDate.textContent='Period: '+fmt(from)+' to '+(to?fmt(to):'Today')+' | Closing payable as of '+(to?fmt(to):'latest available entries');
+ el.innerHTML=`<div class="cards" style="margin:12px 0"><div class="card"><div class="label">Opening Payable</div><div class="num">${money(totalOpening)}</div></div><div class="card"><div class="label">Period Credits / Purchases</div><div class="num">${money(totalCredit)}</div></div><div class="card"><div class="label">Period Debits / Payments</div><div class="num">${money(totalDebit)}</div></div><div class="card"><div class="label">Closing Payables</div><div class="num">${money(total)}</div></div><div class="card"><div class="label">Vendors with Activity / Balance</div><div class="num">${rows.length}</div></div></div>`+
+ (rows.length?`<div class="tablewrap"><table><thead><tr><th>Sr.</th><th>Vendor</th><th class="num">Opening Payable</th><th class="num">Credits / Purchases</th><th class="num">Debits / Payments</th><th class="num">Closing Payable</th><th class="no-print"></th></tr></thead><tbody>${rows.map((x,i)=>`<tr><td>${i+1}</td><td>${esc(x.p.name)}</td><td class="num">${money(x.opening)}</td><td class="num">${money(x.periodCredit)}</td><td class="num">${money(x.periodDebit)}</td><td class="num">${money(x.closing)}</td><td class="no-print"><button class="secondary" onclick="openPartyLedger('${esc(x.p.name)}','Vendor')">Open Ledger</button></td></tr>`).join('')}<tr><th colspan="2">Totals</th><th class="num">${money(totalOpening)}</th><th class="num">${money(totalCredit)}</th><th class="num">${money(totalDebit)}</th><th class="num">${money(total)}</th><th class="no-print"></th></tr></tbody></table></div>`:'<div class="empty">Is date range mein koi payable activity ya closing balance nahi mila.</div>');
+}
 function printPayablesSummary(){const area=document.getElementById('payablesPrintArea');if(!area||!area.innerText.trim())return alert('Payables report pehle load karein.');document.documentElement.classList.add('payables-print-mode');window.print();document.documentElement.classList.remove('payables-print-mode');}
 function renderAccounts(){const f=val('accountFilter');let arr=data.accounts.filter(a=>!f||a.type===f).slice().sort((a,b)=>a.code.localeCompare(b.code,undefined,{numeric:true}));document.getElementById('accountsTable').innerHTML=arr.length?`<div class="tablewrap"><table><thead><tr><th>Code</th><th>Account Name</th><th>Type</th><th>Normal</th><th class="num">Balance</th><th></th></tr></thead><tbody>${arr.map(a=>`<tr><td>${esc(a.code)}</td><td>${esc(a.name)}</td><td>${esc(a.type)}</td><td>${esc(a.normal)}</td><td class="num">${money(balance(a.code))}</td><td><button class="secondary" onclick="renameAccount('${esc(a.code)}')">Edit Name</button> <button type="button" onclick="addOpeningBalanceForAccount('${esc(a.code)}')">+ Opening Balance</button> ${a.builtin?'<span class="pill">Built-in</span>':`<button class="danger" onclick="deleteAccount('${esc(a.code)}')">Delete</button>`}</td></tr>`).join('')}</tbody></table></div>`:'<div class="empty">No accounts.</div>';renderAccountSearchLists()}
 function deleteAccount(code){if(data.entries.some(e=>e.lines.some(l=>l.account===code)))return alert('This account has entries and cannot be deleted.');if(!confirm('Delete this account?'))return;data.accounts=data.accounts.filter(a=>a.code!==code);save();refresh()}
@@ -748,7 +779,7 @@ async function startOnlineApp(){
 }
 async function afterLogin(user){
  cloudUser=user;document.getElementById('cloudUser').textContent=user.email||'Signed in';
- try{await load();cloudReady=true;document.getElementById('loginGate').style.display='none';document.getElementById('vDate').value=new Date().toISOString().slice(0,10);document.getElementById('prDate').value=new Date().toISOString().slice(0,10);document.getElementById('entryDate').value=new Date().toISOString().slice(0,10);const payableDate=document.getElementById('payablesAsOf');if(payableDate)payableDate.value=new Date().toISOString().slice(0,10);addLine('1000');addLine('5100');refresh();renderReports();clearVoucher();renderPartiesItems();renderBankReconciliation();renderPurchasePaymentHistory();}
+ try{await load();cloudReady=true;document.getElementById('loginGate').style.display='none';document.getElementById('vDate').value=new Date().toISOString().slice(0,10);document.getElementById('prDate').value=new Date().toISOString().slice(0,10);document.getElementById('entryDate').value=new Date().toISOString().slice(0,10);const payableToDate=document.getElementById('payablesTo');if(payableToDate)payableToDate.value=new Date().toISOString().slice(0,10);addLine('1000');addLine('5100');refresh();renderReports();clearVoucher();renderPartiesItems();renderBankReconciliation();renderPurchasePaymentHistory();}
  catch(e){cloudReady=false;document.getElementById('loginGate').style.display='flex';document.getElementById('loginMsg').textContent='Signed in, but database access failed. Check SQL/RLS setup. '+(e.message||'');setCloudStatus('Database access error',true);}
 }
 startOnlineApp();
